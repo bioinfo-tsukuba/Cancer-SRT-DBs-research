@@ -1,0 +1,95 @@
+# ======================
+# OS (macOS)
+# ======================
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# macOS generated files
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# ======================
+# VSCode
+# ======================
+.vscode/
+.history/
+
+# ======================
+# Python
+# ======================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# virtual environments
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ======================
+# Data files (excluding raw / large data)
+# adjustment may be needed
+# ======================
+# data/raw/* # no such directory in this project
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.json
+*.rds
+*.rda
+*.h5
+*.hdf5
+
+# allow small example data
+# .xlsx files and .csv files in the following directories are included for input
+!Analysis/*.xlsx 
+!Analysis/timecourse/*.csv
+
+# ======================
+# Logs / temporary
+# ======================
+*.log
+*.out
+*.tmp
+*.bak
+
+# ======================
+# Other editors / tools
+# ======================
+*.swp
+*.swo
+.idea/
+
+# ======================
+# LaTeX
+# ======================
+*.aux
+*.bbl
+*.blg
+*.toc
+*.lof
+*.lot
+*.log
+*.fls
+*.fdb_latexmk
+*.synctex.gz
