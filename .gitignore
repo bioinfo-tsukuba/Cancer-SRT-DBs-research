@@ -93,3 +93,12 @@ pip-delete-this-directory.txt
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+
+# ======================
+# R / RStudio (if accidentally created)
+# ======================
+.Rproj.user/
+*.Rproj
+.Rhistory
+.RData
+.Ruserdata
