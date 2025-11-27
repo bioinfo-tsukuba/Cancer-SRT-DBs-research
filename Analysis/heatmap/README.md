@@ -65,13 +65,16 @@ Rows and columns are automatically sorted in descending order of their total cou
 This sorting occurs before adding the “Total” row/column. 
 
 Cells with counts ≥1 display the raw (non-log) values. 
-These cells are colored by the matplotlib color map `Blues` (from 1 to the maximum logarithmically).
-The color scale bar is located the right side of the heatmap.
-This scale bar indicates the correspondence between the raw values and the colors.
+These cells are colored using the `Blues` colormap with logarithmic scaling (LogNorm),  
+meaning that the *color intensity* reflects the values on a log scale.  
+The color scale bar on the right shows tick labels in **raw (non-log) values**, so it directly  
+indicates which original counts correspond to each color.  
 Cells with value 0 don't show the raw value (0), and are only displayed in a light gray (#FAFAFA).
 
 > *Note*
 > Log scaling (LogNorm) is automatically applied only when the maximum observed value is greater than 1.
+> In our curated input file, vmax is always ≥2, therefore we only describes the behavior under this condition. 
+> If vmax were 0 or 1, LogNorm would not be used, and zero-value cells would instead appear in the lightest shade of the `Blues` colormap rather than #FAFAFA.
 > Each cell label (count) switches automatically between black and white text depending on background tone.
 
 #### Input file
