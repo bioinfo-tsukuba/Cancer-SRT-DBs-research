@@ -27,9 +27,9 @@ Among GSM data, only rows with non-empty `cancer_srt_corrections` (e.g., `"A -> 
 
 ---
 
-## Network construction
+#### Network construction
 
-### Panel A — GSM similarity (Jaccard)
+##### Panel A — GSM similarity (Jaccard)
 - **Nodes:** Databases. Node size = `300 + 12 × (total GSM count)` (minimum visual size = 300; areas are not directly comparable as absolute proportions).  
 - **Edges:** Between databases *A* and *B*, color encodes the **Jaccard similarity** of GSM sets  
   \[
@@ -39,7 +39,7 @@ Among GSM data, only rows with non-empty `cancer_srt_corrections` (e.g., `"A -> 
   Between databases *A* and *B*, an edge is drawn if they share at least one GSM (|G_A \cap G_B| ≥ 1).
 - **Layout:** Spring layout with `k = 1.8` (parameter `K_FOR_LAYOUT`) for readability; positions are influenced by both similarity and repulsive forces. In addition, The spring layout uses a fixed random seed (SEED = 42), ensuring consistent node positions across runs and across panels.
 
-### Panel B — Actual shared errors
+##### Panel B — Actual shared errors
 - **Definition of “shared (GSM × error-pair)”**: The same GSM ID **and** the same normalized error pair (`"a -> b"` after lowercasing/whitespace normalization) appear in **≥ 2** different databases.  
 - **Nodes:** Three concentric circles per database:  
   1) **Outer (white):** total GSMs (same size rule as Panel A),  
@@ -51,7 +51,7 @@ Among GSM data, only rows with non-empty `cancer_srt_corrections` (e.g., `"A -> 
   *No Jaccard is computed in Panel B.*  
   Between databases *A* and *B*, an edge is drawn if they share at least one shared (GSM × error-pair).
 
-### Panel C — Carrier similarity (Jaccard)
+##### Panel C — Carrier similarity (Jaccard)
 - **Carriers:** Let \(U_{\mathrm{err}}\) be the union of GSMs that appear in any cross-DB shared error. Each database’s **carrier set** is \(P_i = G_i \cap U_{\mathrm{err}}\).  
 - **Nodes:** Outer **white** circle = total GSMs (as in Panel A), plus **light pink ring** = carriers (hidden if 0; otherwise size starts at **200**. Therefore, areas are not directly comparable as absolute proportions).  
 - **Edges:** Color encodes the **Jaccard similarity of carrier sets**  
@@ -62,7 +62,7 @@ Among GSM data, only rows with non-empty `cancer_srt_corrections` (e.g., `"A -> 
   Between databases *A* and *B*, an edge is drawn if they share at least one GSM (P_A \cap P_B ≥ 1).
 - **Layout:** Reuses Panel A’s positions for direct visual comparison.
 
-## Input file
+#### Input file
 The input Excel file used across multiple analyses,
 `chccsrtdb_analysis.xlsx`, is stored in the parent directory of each analysis folder to avoid unnecessary duplication:
 `../chccsrtdb_analysis.xlsx`
@@ -70,7 +70,7 @@ The input Excel file used across multiple analyses,
 However, this script requires the Excel file to be located in the same directory as make_network.py when executed.
 Please copy the file from the parent directory into the folder where make_network.py is located before running the script.
 
-### Required columns in `chccsrtdb_analysis.xlsx`
+##### Required columns in `chccsrtdb_analysis.xlsx`
 
 This script expects the following columns:
 
@@ -80,7 +80,7 @@ This script expects the following columns:
 - `original_data_source_1` … `original_data_source_5`: fields that may contain GEO sample URLs or GSM IDs.
 - `unverified_flag`: if present, rows with `unverified_flag == "not_confirmed"` are excluded.
 
-## Usage
+#### Usage
 
 ```bash
 # Run in VS Code terminal, with both make_network.py and chccsrtdb_analysis.xlsx in the same folder
@@ -96,7 +96,7 @@ python3 make_network.py
 > The script intentionally supplies a single RGBA tuple as the node color, and matplotlib still renders all nodes correctly in a uniform color.
 > You can safely ignore this warning.
 
-## Output files
+#### Output files
 All outputs are saved in `./out_networks`.
 
 | Output file | Description |
@@ -115,11 +115,14 @@ All outputs are saved in `./out_networks`.
 > *SVG note*  
 > We edited these SVG files in Inkscape to manually adjust label positions, label name, font type and font size for clarity.
 
-### 4. requirements.txt
+#### Dependency
+The required Python packages are listed in the following file: 
+`../requirements.txt`
+
 This file lists the Python packages installed in the environment used for this project.  
 Some packages may not be strictly required for running the scripts.
-
 To ensure compatibility, you can install all packages with:
-```zsh
-pip install -r requirements.txt
+
+```bash
+pip install -r ../requirements.txt
 ```
