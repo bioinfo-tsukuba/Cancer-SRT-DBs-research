@@ -16,13 +16,13 @@ COL_DB = "Database_name"
 COL_CANCER = "normalized primary cancer name checked"
 COL_SRT = "normalized SRT technology checked"
 
-# 重複判定列（新：単一番号）
+# duplication information column
 COL_DUP = "duplicate_group"
 
-# 後方互換（旧：d_# 文字列）, 現在このカラムは削除しており有効ではない
+# backward compatibility (old: d_# string), currently this column is removed form the input file and not effective
 COL_ERR = "metadata_errors"
 
-# ---------- 基本ユーティリティ ----------
+# ---------- basic utilities ----------
 def split_semicol(cell):
     if pd.isna(cell):
         return []
@@ -47,9 +47,9 @@ def canon_srt(x):
         return "Slide-seq/Slide-seqV2"
     return s
 
-# ---------- 重複キー抽出 ----------
-# duplicate_group を単一グループ番号に正規化
-# 例: "12" / "d_12" / "D12" / "d-12" / "12;13" -> "12"（先頭のみ採用）
+# ---------- duplicate key extraction ----------
+# normalize duplicate_group to a single group number
+# e.g., "12" / "d_12" / "D12" / "d-12" / "12;13" -> "12" (only the first is used)
 def _normalize_single_dupgrp(x):
     if pd.isna(x): 
         return None
@@ -62,7 +62,7 @@ def _normalize_single_dupgrp(x):
         return m.group(1)
     return None
 
-# 旧metadata_errors (d_#) 後方互換：最初の d_# の番号を単一キーに
+# old metadata_errors (d_#) backward compatibility: use the first d_# number as a single key
 _pat_dup_err = re.compile(r"\bd_(\d+)\b", re.IGNORECASE)
 def _first_dup_from_metadata_errors(s):
     if pd.isna(s):
@@ -70,28 +70,28 @@ def _first_dup_from_metadata_errors(s):
     m = _pat_dup_err.search(str(s))
     return m.group(1) if m else None
 
-# ---------- 読み込みと重複排除 ----------
+# ---------- reading and duplicate removal ----------
 df = pd.read_excel(IN_XLSX, sheet_name=SHEET_NAME)
 
 if COL_DUP in df.columns:
     dupkey = df[COL_DUP].map(_normalize_single_dupgrp)
 else:
-    # 後方互換（duplicate_groupが無い場合のみ）
+    # backward compatibility (only if duplicate_group is not present)
     dupkey = df.get(COL_ERR, pd.Series([None]*len(df))).map(_first_dup_from_metadata_errors)
 
 use_row = np.ones(len(df), dtype=bool)
 seen = {}
 for i, g in dupkey.items():
     if g is None:
-        continue  # グループなしは常に採用
+        continue  # always use rows without a group
     if g not in seen:
-        seen[g] = i   # 最初の行のみ採用
+        seen[g] = i   # use only the first row
     else:
-        use_row[i] = False  # 以降の重複行を除外
+        use_row[i] = False  # exclude subsequent duplicate rows
 
 df_filt = df.loc[use_row].copy()
 
-# ---------- DBごとのユニーク種集合 ----------
+# ---------- unique species sets per DB ----------
 db2cancers, db2srts = {}, {}
 for _, r in df_filt.iterrows():
     db = r.get(COL_DB)
@@ -114,7 +114,7 @@ for db in sorted(db2cancers.keys()):
                  "SRT_types": len(db2srts[db])})
 counts_df = pd.DataFrame(rows)
 
-# 並び順
+# order
 order_cancer = ["All databases"] + counts_df.loc[counts_df["Database"]!="All databases"] \
     .sort_values("Cancer_types", ascending=False)["Database"].tolist()
 order_srt = ["All databases"] + counts_df.loc[counts_df["Database"]!="All databases"] \
@@ -122,7 +122,7 @@ order_srt = ["All databases"] + counts_df.loc[counts_df["Database"]!="All databa
 
 counts_df.to_csv(OUT_COUNTS_CSV, index=False)
 
-# ---------- 作図設定 ----------
+# ---------- plotting settings ----------
 plt.rcParams["font.family"] = "Arial"
 plt.rcParams["axes.titlesize"] = 16
 plt.rcParams["axes.labelsize"] = 13 # default 13
@@ -151,7 +151,7 @@ def plot_bar(counts, order, title, ylabel, out_png, out_pdf, color):
     fig.savefig(out_pdf)
     plt.close(fig)
 
-# 青系1色（見え方は従来と同じ）
+# blue color only
 plot_bar(counts_df[["Database","Cancer_types"]],
          order_cancer,
          "Number of cancer types per database",
