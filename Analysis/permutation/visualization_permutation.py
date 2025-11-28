@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Permutation 結果の図（シンプル版）
-- ヒストグラム（灰）
-- 期待値（青点線）
-- ±SD（青帯）
-- 観測値（赤破線）
-凡例やラベルは描画しない。説明は本文/表で補足。
+Simple version of permutation results visualization.
+- Histogram
+- mean
+- ±SD
+- observed value
+- 97.5% quantile
+legends added and value labels on lines
 """
 
 import os, re
@@ -19,12 +20,12 @@ FIG_SIZE = (7.2, 4.8)
 
 import matplotlib as mpl
 
-# SVGを編集しやすく：フォントをアウトライン化せず “テキストのまま”
-mpl.rcParams['svg.fonttype'] = 'none'      # ←超重要（Inkscapeで文字編集可）
-# 透明背景で出したい場合（任意）
+# to edit SVG easily
+mpl.rcParams['svg.fonttype'] = 'none' 
+# for transparent background (optional)
 mpl.rcParams['savefig.transparent'] = False
-# フォントの指定（任意：環境に合わせて）
-mpl.rcParams['font.family'] = 'Arial'  # 例。日本語なら Noto Sans CJK 等
+# font specification (optional: adjust to your environment)
+mpl.rcParams['font.family'] = 'Arial' 
 
 def counts_path(excluded_db: str) -> str:
     if excluded_db == "(none)":
@@ -44,9 +45,10 @@ def plot_case(excluded_db: str, obs: int, mu: float, sd: float, q975: float,
 
     # hist
     ax.hist(perm, bins=bins, color="#D0D0D0", edgecolor="#A0A0A0",
-        label="_nolegend_")  # 凡例に入れない
+        label="_nolegend_") # At first, we plan to exclude the legends for histogram
 
-    # ±SD band 結果を凡例に表示するように修正した
+    # However, we finally add the legends for histogram 
+    # ±SD band
     if sd > 0:
         sd_low = mu - sd
         sd_high = mu + sd
@@ -65,20 +67,18 @@ def plot_case(excluded_db: str, obs: int, mu: float, sd: float, q975: float,
     ax.axvline(obs, linestyle="-", linewidth=2.2, color=(1.0, 0.08, 0.58, 0.7),
            label="observed")
 
-# ==== 👇 ここから追加 ====
-
-    # 凡例（上左 or 自動配置）
+    # legends setting
     leg = ax.legend(
-        frameon=False,        # 枠なし（Trueで枠あり）
-        loc="upper left",     # 左上配置（"best"で自動）
+        frameon=False,        # without frame (True: with frame)
+        loc="upper left",     # upper left ("best" for automatic)
         fontsize=10,
-        handlelength=2.8,     # 線の長さ
+        handlelength=2.8,     # line length
         handleheight=1.0
     )
 
-    # ---- 図中のラインに数値を表示 ----
+    # ---- Display values on lines in the figure ----
     ymin, ymax = ax.get_ylim()
-    y_text = ymax * 0.96   # 上端より少し下（トリミング防止）
+    y_text = ymax * 0.96   # slightly below the top edge (to prevent clipping)
 
     # mean
     ax.text(mu, y_text, f"{mu:.1f}",
@@ -91,11 +91,11 @@ def plot_case(excluded_db: str, obs: int, mu: float, sd: float, q975: float,
     ax.text(obs, y_text, f"{obs}",
             ha="center", va="top", fontsize=10, rotation=45)
 
-    # 上辺・右辺の枠線を消すため追加
+    # to remove top and right spines
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
-# 統計値ボックス（右上）--> comment out
+# old statistical box --> comment out
 #    textstr = (
 #        f"mean = {mu:.1f}\n"
 #        f"$\\pm$SD = {sd:.1f}\n"
@@ -108,9 +108,8 @@ def plot_case(excluded_db: str, obs: int, mu: float, sd: float, q975: float,
 #        fontsize=9, va="top", ha="right",
 #        bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8)
 #    )
-    # ==== 👆 ここまで追加 ====
 
-    # 軸ラベルとタイトルだけ
+    # axis labels and title only
     title = "Permutation null (overall)" if excluded_db=="(none)" else f"Permutation null (exclude {excluded_db})"
     ax.set_title(title)
     ax.set_xlabel("Shared (GSM, error) count under null")
@@ -121,12 +120,12 @@ def plot_case(excluded_db: str, obs: int, mu: float, sd: float, q975: float,
     fig.savefig(out_png.replace(".png", ".svg"), bbox_inches="tight")
     plt.close(fig)
     plt.close(fig)
-    print(f"[OK] 図を保存: {out_png}")
+    print(f"[OK] Figure saved: {out_png}")
 
 def main():
     summary_file = os.path.join(BASE_DIR, "perm_summary.csv")
     if not os.path.exists(summary_file):
-        raise SystemExit("perm_summary.csv が見つかりません。")
+        raise SystemExit("perm_summary.csv not found.")
 
     summary = pd.read_csv(summary_file)
     for _, r in summary.iterrows():
@@ -134,7 +133,7 @@ def main():
         obs = int(r["obs_shared"])
         mu  = float(r["null_mean"])
         sd  = float(r["null_sd"])
-        q975 = float(r["null_975"]) # 97.5%値も取得
+        q975 = float(r["null_975"]) 
         counts_file = counts_path(excl)
         if not os.path.exists(counts_file):
             continue
