@@ -18,10 +18,6 @@ It provides an overview of the folder contents and usage instructions.
 This Python script aggregates and visualizes the curated data (`chccsrtdb_analysis.xlsx`) while considering
 the **database** (Database_name), the **recording unit** (Record_unit), and the **duplicate groups** (duplicate_group).
 
-> *Note*
-> All inline comments are written in Japanese.
-> The script header refers to an older filename (make_heatmaps_v4.py); this is a legacy artifact and has no functional impact.
-
 #### Aggregation Rules
 **General rules**:
 - Aggregation is performed per recording unit (Record_unit).

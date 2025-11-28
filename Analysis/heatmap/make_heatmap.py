@@ -13,15 +13,15 @@ SHEET_NAME = 0
 def outname(prefix, unit, ext):
     return f"{prefix}_{unit}.{ext}"
 
-# 列名
+# column names
 COL_DB    = "Database_name"
 COL_CAN   = "normalized primary cancer name checked"
 COL_SRT   = "normalized SRT technology checked"
 COL_META  = "metastatic cancer checked"
 COL_UNIT  = "Record_unit"
-COL_DUPGRP = "duplicate_group"  # ← 追加：d_# の # 部分が入っている（もしくは d_12 などの表記）
+COL_DUPGRP = "duplicate_group"  # ← added: contains the # part of d_# (or notation like d_12)
 
-# ---- ルール ----
+# ---- rules ----
 def split_sc(cell):
     if pd.isna(cell): return []
     return [t.strip() for t in str(cell).split(";") if str(t).strip()!=""]
@@ -67,10 +67,10 @@ def add_totals(pv):
 def plot_heatmap_with_totals(pv_base, title, out_png, out_pdf, cmap_name="Blues",
                              lognorm=False, zero_color="#FAFAFA"):
     """
-    ・色付けのみ対数（lognorm=True のとき）。セル注記/カラーバー目盛は実測値（log前）
-    ・ゼロは対数不可のためマスクし、zero_color で表示
+    ・coloring only is logarithmic (when lognorm=True). Cell annotations/colorbar ticks show actual values (before log)
+    ・Zero values cannot be logged, so they are masked and displayed with zero_color
     """
-    # 並び替えと合計付与
+    # sorting and adding totals
     pv_sorted = sort_heatmap(pv_base)
     base_sum = int(pv_sorted.values.sum()) if pv_sorted.size else 0  # 元テーブルの総和（合計セルの基準表示用）
     pv = add_totals(pv_sorted)
@@ -81,22 +81,22 @@ def plot_heatmap_with_totals(pv_base, title, out_png, out_pdf, cmap_name="Blues"
     plt.rcParams["font.family"] = "Arial"
 
     vals = pv.values.astype(float)
-    data_max = float(vals.max()) if vals.size else 0.0  # 実際の最大値（合計セル含む）
+    data_max = float(vals.max()) if vals.size else 0.0  # maximum value search between all cells
 
-    # LogNorm 使用可否（正の値があり、かつ最大が1を超える）
+    # LogNorm usage condition (positive values exist and max is greater than 1)
     use_lognorm = bool(lognorm and np.any(vals > 0) and data_max > 1.0)
 
-    # カラースケール設定
+    # Color scale setting
     if use_lognorm:
-        # 0 をマスクして薄色に、最小正値を vmin に
+        # Mask 0 with a light color, set the minimum positive value as vmin
         data = np.ma.masked_equal(vals, 0.0)
         min_pos = float(vals[vals > 0].min())
         norm = LogNorm(vmin=min_pos, vmax=data_max)
     else:
-        data = vals  # マスク不要
+        data = vals  # no mask needed
         norm = Normalize(vmin=0.0, vmax=data_max if data_max > 0 else 1.0)
 
-    # 図作成
+    # Figure setup
     n_rows, n_cols = pv.shape
     fig_w = max(8, n_cols * 0.5)
     fig_h = max(6, n_rows * 0.4)
@@ -104,7 +104,7 @@ def plot_heatmap_with_totals(pv_base, title, out_png, out_pdf, cmap_name="Blues"
 
     im = ax.imshow(data, aspect="auto", cmap=cmap_name, norm=norm)
     if use_lognorm:
-        # マスク（ゼロ）は指定色で塗る
+        # Mask (zero) with specified color
         im.cmap.set_bad(zero_color)
 
     ax.set_title(title, fontsize=16)
@@ -112,13 +112,13 @@ def plot_heatmap_with_totals(pv_base, title, out_png, out_pdf, cmap_name="Blues"
     ax.set_xticklabels(pv.columns, rotation=45, ha="right", fontsize=12) # fontsize = 10 -> 12
     ax.set_yticklabels(pv.index, fontsize=12) # fontsize = 10 -> 12
 
-    # セル境界
+    # Cell boundaries
     ax.set_xticks(np.arange(-.5, n_cols, 1), minor=True)
     ax.set_yticks(np.arange(-.5, n_rows, 1), minor=True)
     ax.grid(which="minor", color="#D0D0D0", linestyle="-", linewidth=0.4)
     ax.tick_params(axis='both', which='both', length=0)
 
-    # セル内数値（実測値）
+    # Cell values (actual values)
     for i in range(n_rows):
         for j in range(n_cols):
             raw = pv.values[i, j]
@@ -126,13 +126,13 @@ def plot_heatmap_with_totals(pv_base, title, out_png, out_pdf, cmap_name="Blues"
             if val == 0:
                 continue
             try:
-                tone = float(norm(raw))  # 0〜1（大きいほど濃い想定）
+                tone = float(norm(raw))  # 0〜1 (greater value, darker tone)
             except Exception:
                 tone = 0.0
             color = "white" if tone >= 0.6 else "black"
             ax.text(j, i, str(val), ha="center", va="center", fontsize=9, color=color)
 
-    # カラーバー（ラベルは実測値）
+    # Colorbar (labels show actual values)
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.ax.set_ylabel("Count", rotation=270, labelpad=12)
     if use_lognorm:
@@ -151,20 +151,20 @@ def plot_heatmap_with_totals(pv_base, title, out_png, out_pdf, cmap_name="Blues"
 # ---- load & dedup ----
 df = pd.read_excel(IN_XLSX, sheet_name=SHEET_NAME)
 
-# duplicate_group の正規化：
-#   "12" / "d_12" / "D12" / "d-12" などを "12" にそろえる。空/NaNは None（=グループ無し）
+# duplicate_group processing:
+#   Normalize "12" / "d_12" / "D12" / "d-12" etc. to "12". Empty/NaN becomes None (no group)
 def _normalize_dupgrp(x):
     if pd.isna(x): return None
     s = str(x).strip()
     if s == "": return None
     m = re.fullmatch(r"(?:d[\s_\-]?)?(\d+)", s, flags=re.IGNORECASE)
     if m:
-        return m.group(1)  # 数字部分
-    return s  # 想定外表記はそのままグルーピングキーとして扱う
+        return m.group(1)  # numeric part
+    return s  # unexpected format is used as grouping key as is
 
 dup_series = df.get(COL_DUPGRP)
 if dup_series is None:
-    # 互換性のため：列が無い場合は重複除外をスキップ（従来の metadata_errors 方式は廃止）
+    # For compatibility: skip deduplication if column is missing (legacy metadata_errors method is deprecated)
     df = df.copy()
 else:
     df = df.copy()
@@ -174,11 +174,11 @@ else:
     seen = {}
     for i, g in df["_dup_group_norm"].items():
         if g in (None, np.nan, ""):
-            continue  # グループ無しは常に採用
+            continue  # Always use rows without a group
         if g not in seen:
-            seen[g] = i   # そのグループの最初の行を採用
+            seen[g] = i   # Use only the first row of that group
         else:
-            use_row[i] = False  # 以降の重複行を除外
+            use_row[i] = False  # Exclude subsequent duplicate rows
     df = df.loc[use_row].copy()
 
 # ---- stratified ----
@@ -211,7 +211,7 @@ for unit in ["dataset","sample"]:
     pv_can_srt=safe_pivot(pd.DataFrame(rows_cancer_srt,columns=["Cancer","SRT"]),"Cancer","SRT","SRT")
     pv_can_meta=safe_pivot(pd.DataFrame(rows_cancer_meta,columns=["Cancer","Metastasis"]),"Cancer","Metastasis","Metastasis")
 
-    # 対数着色で出力（必要に応じて lognorm=False にすれば線形）
+    # Output in logarithmic scale (Use lognorm=False for linear scale if needed)
     plot_heatmap_with_totals(
         pv_db_cancer, f"Cancer types per database ({unit})",
         outname("fig_heatmap_db_cancer",unit,"png"),
