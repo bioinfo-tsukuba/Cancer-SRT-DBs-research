@@ -1,0 +1,125 @@
+# README
+
+## Overview
+This folder visualizes database–database network relationships for GEO **sample-level** data (records associated with **GSM** accessions), focusing on (i) overall overlap of GSM holdings and (ii) cross-database sharing of **annotation errors** related to **cancer type** or **SRT technology**.
+
+---
+
+## File description
+
+### 1. README.md
+This file.  
+It provides an overview of the folder contents and usage instructions.
+
+### 2. make_network.py
+
+**Target records**  
+Entries are treated as **GSM data** if any of the columns `original_data_source_1 … original_data_source_5` contain at least one GSM accession (e.g. URLs starting with https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSM...).  
+*Implementation note:* GSMs are extracted via a regular expression (`GSM\d+`); the common URL form is only illustrative.
+
+Among GSM data, only rows with non-empty `cancer_srt_corrections` (e.g., `"A -> B"`; multiple pairs separated by `;`) are considered for error-sharing analyses.
+
+> *Notes*  
+> • For backward compatibility, if `cancer_srt_corrections` is empty but a legacy `metadata_errors` column is present, error-pairs can also be parsed from there. 
+> However, this column is not present in the current input (i.e., not used). 
+> • The analysis explicitly restricts to `Record_unit == "sample"` and **excludes** rows with `unverified_flag == "not_confirmed"`.
+> • In this study, there are no errors separated by `;` in a `cancer_srt_corrections` column.
+
+---
+
+## Network construction
+
+### Panel A — GSM similarity (Jaccard)
+- **Nodes:** Databases. Node size = `300 + 12 × (total GSM count)` (minimum visual size = 300; areas are not directly comparable as absolute proportions).  
+- **Edges:** Between databases *A* and *B*, color encodes the **Jaccard similarity** of GSM sets  
+  \[
+  J(A,B) = \frac{|G_A \cap G_B|}{|G_A \cup G_B|}
+  \]  
+  and **width** encodes the number of shared GSMs \(|G_A \cap G_B|\).
+  Between databases *A* and *B*, an edge is drawn if they share at least one GSM (|G_A \cap G_B| ≥ 1).
+- **Layout:** Spring layout with `k = 1.8` (parameter `K_FOR_LAYOUT`) for readability; positions are influenced by both similarity and repulsive forces. In addition, The spring layout uses a fixed random seed (SEED = 42), ensuring consistent node positions across runs and across panels.
+
+### Panel B — Actual shared errors
+- **Definition of “shared (GSM × error-pair)”**: The same GSM ID **and** the same normalized error pair (`"a -> b"` after lowercasing/whitespace normalization) appear in **≥ 2** different databases.  
+- **Nodes:** Three concentric circles per database:  
+  1) **Outer (white):** total GSMs (same size rule as Panel A),  
+  2) **Middle (light pink):** **carriers** — all GSMs that appear in the union of any cross- DB shared error (\(U_{\mathrm{err}}\)). 
+  Even databases that did not themselves exhibit that shared error are included if they contain such GSMs (non-party carriers are still shown in the outer ring);
+  3) **Inner (deep pink):** **carriers with at least one shared error observed** (subset); hidden if 0, otherwise size starts at **80** and grows with count.  
+  (Because minimum sizes are applied, areas are not directly comparable as absolute proportions.)
+- **Edges:** **Color and width** both reflect the **count of shared (GSM × error-pair)** between databases.  
+  *No Jaccard is computed in Panel B.*  
+  Between databases *A* and *B*, an edge is drawn if they share at least one shared (GSM × error-pair).
+
+### Panel C — Carrier similarity (Jaccard)
+- **Carriers:** Let \(U_{\mathrm{err}}\) be the union of GSMs that appear in any cross-DB shared error. Each database’s **carrier set** is \(P_i = G_i \cap U_{\mathrm{err}}\).  
+- **Nodes:** Outer **white** circle = total GSMs (as in Panel A), plus **light pink ring** = carriers (hidden if 0; otherwise size starts at **200**. Therefore, areas are not directly comparable as absolute proportions).  
+- **Edges:** Color encodes the **Jaccard similarity of carrier sets**  
+  \[
+  J_{\mathrm{carry}}(A,B)=\frac{|P_A \cap P_B|}{|P_A \cup P_B|}
+  \]  
+  and **width** encodes the number of **shared carriers** \(|P_A \cap P_B|\).  
+  Between databases *A* and *B*, an edge is drawn if they share at least one GSM (P_A \cap P_B ≥ 1).
+- **Layout:** Reuses Panel A’s positions for direct visual comparison.
+
+## Input file
+The input Excel file used across multiple analyses,
+`chccsrtdb_analysis.xlsx`, is stored in the parent directory of each analysis folder to avoid unnecessary duplication:
+`../chccsrtdb_analysis.xlsx`
+
+However, this script requires the Excel file to be located in the same directory as make_network.py when executed.
+Please copy the file from the parent directory into the folder where make_network.py is located before running the script.
+
+### Required columns in `chccsrtdb_analysis.xlsx`
+
+This script expects the following columns:
+
+- `Database_name`: database identifier used as node label.
+- `Record_unit`: record granularity; only rows with `Record_unit == "sample"` are used.
+- `cancer_srt_corrections`: error-pairs such as `"A -> B"` (multiple pairs separated by `;`).
+- `original_data_source_1` … `original_data_source_5`: fields that may contain GEO sample URLs or GSM IDs.
+- `unverified_flag`: if present, rows with `unverified_flag == "not_confirmed"` are excluded.
+
+## Usage
+
+```bash
+# Run in VS Code terminal, with both make_network.py and chccsrtdb_analysis.xlsx in the same folder
+cp ../chccsrtdb_analysis.xlsx . # if you have not already placed the input file in this directory
+python3 make_network.py
+
+```
+
+*Note*
+> When generating the network figures, matplotlib may emit a warning such as: 
+> `UserWarning: *c* argument looks like a single numeric RGB or RGBA sequence,...`
+> This warning is harmless.
+> The script intentionally supplies a single RGBA tuple as the node color, and matplotlib still renders all nodes correctly in a uniform color.
+> You can safely ignore this warning.
+
+## Output files
+All outputs are saved in `./out_networks`.
+
+| Output file | Description |
+|---|---|
+| **db_panel_A_jaccard.png / .svg** | Panel A figure. *Edges:* color = Jaccard(GSM sets), width = #shared GSMs. |
+| **db_panel_B_errors_dualred_with_base.png / .svg** | Panel B figure. *Edges:* color & width = count of shared (GSM × error-pair). *Nodes:* outer = total GSMs, middle = carriers, inner = carriers ∩ shared-errors. |
+| **db_panel_C_carry_jaccard_with_base.png / .svg** | Panel C figure. *Edges:* color = Jaccard(carriers), width = #shared carriers. *Nodes:* outer = total GSMs, ring = carriers. |
+| **db_db_error_edge_metrics.csv** | Pairwise DB metrics (base for A/B): `size_A`, `size_B`, `shared_gsm`, `shared_gsm_error`, `jaccard`. |
+| **db_error_node_summary_dualred.csv** | Per-DB node metrics: `total_gsm`, `internal_error_gsm`, `shared_error_gsm`, and fractions (`frac_internal_of_total`, `frac_shared_of_total`, `frac_shared_of_internal`). |
+| **db_db_carry_edge_metrics.csv** | Pairwise DB metrics for carriers (Panel C): `size_carry_A/B`, `shared_carry_gsm`, `jaccard_carry`. |
+| **db_carry_node_summary.csv** | Per-DB carrier summary (Panel C): `total_gsm`, `carrier_gsm`, `frac_carrier_of_total`. |
+| **db_panel_B_error_edges.csv** | Pairwise DB counts of shared errors used in Panel B (`shared_err_count`). |
+| **db_panel_B_shared_error_items.csv** | Detailed items for Panel B: `DB_A`, `DB_B`, `GSM`, `error_pair`. |
+| **db_panel_B_shared_error_summary.csv** | Re-aggregated summary of the above detail table (consistency check). |
+
+> *SVG note*  
+> We edited these SVG files in Inkscape to manually adjust label positions, label name, font type and font size for clarity.
+
+### 4. requirements.txt
+This file lists the Python packages installed in the environment used for this project.  
+Some packages may not be strictly required for running the scripts.
+
+To ensure compatibility, you can install all packages with:
+```zsh
+pip install -r requirements.txt
+```
