@@ -2,15 +2,15 @@
 # -*- coding: utf-8 -*-
 
 """
-完全ローカル：DBネットワーク描画（x=earliest固定 / y=最適分散 "time_optim"）
+Completely local script: DB network drawing (x=earliest fixed / y=optimal dispersion "time_optim")
 - LAYOUT_MODE:
-  - "time_optim": x=earliest 固定、y=spring初期化 + 近接x反発で最適分散（★推奨）
-  - "barycenter": y=交差削減（バリセンター）＋ 時間層バンド（Y/M/D） / x=earliest
-  - "hierarchy":  y=データ供給階層（data_source 上流→下流） / x=earliest
-  - "spring":     x=earliest 固定 + y=ばね（反発調整なしの従来版）
-- citing=点線 / data_source=実線。共有エラー(shared_err_count)は半透明の太帯で重ね描き。
-- pos_nudge.csv による手動オフセット対応（internal_key or Database_name, dx, dy）
-- エッジ描画ロジックは従来のまま（変更なし）
+  - "time_optim": x=earliest fixed, y=spring initialization + optimal dispersion with proximity x repulsion (★recommended)
+  - "barycenter": y=crossing reduction (barycenter) + time layer band (Y/M/D) / x=earliest
+  - "hierarchy":  y=data supply hierarchy (data_source upstream → downstream) / x=earliest
+  - "spring":     x=earliest fixed + y=spring (traditional version without repulsion adjustment)
+- citing=dot line / data_source=solid line. Shared errors (shared_err_count) are overlaid with semi-transparent thick bands.
+- pos_nudge.csv can be used for manual offsetting (internal_key or Database_name, dx, dy)
+- Edge drawing logic remains unchanged (no modifications)
 """
 
 import sys, math, warnings, unicodedata, re, random, pickle
@@ -23,70 +23,70 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 import matplotlib
-matplotlib.rcParams['svg.fonttype'] = 'none' # SVGでテキストをフォント情報として保存
+matplotlib.rcParams['svg.fonttype'] = 'none' # Save text as font information in SVG
 import matplotlib.pyplot as plt
 from matplotlib.dates import date2num, num2date, YearLocator, DateFormatter
 from matplotlib import cm, colors as mcolors
 from matplotlib import font_manager as fm, rcParams
 from matplotlib.font_manager import FontProperties
 from matplotlib import transforms as mtransforms
-from matplotlib.lines import Line2D # 凡例を追加するために導入
-from matplotlib.patches import FancyArrowPatch # overlay 矢印の zorder 調整用
+from matplotlib.lines import Line2D # Introduced to add legend
+from matplotlib.patches import FancyArrowPatch # overlay arrow zorder adjustment
 
 
 def _to_naive_datetime(dt):
-    """datetime/Timestamp をタイムゾーンなし(naive)の datetime に統一"""
+    """Convert datetime/Timestamp to naive datetime without timezone"""
     if dt is None:
         return None
     # pandas.Timestamp
     if isinstance(dt, pd.Timestamp):
-        # tz 付きなら tz 情報を剥がす
+        # if tz attached, remove tz information
         if dt.tz is not None:
             dt = dt.tz_localize(None)
         return dt.to_pydatetime()
-    # 標準 datetime
+    # standard datetime
     if isinstance(dt, datetime):
         return dt.replace(tzinfo=None)
     return dt
 
 def _num2date_naive(x):
-    """matplotlib.dates.num2date の結果(UTC付き)を naive にして返す"""
+    """Return a naive datetime by removing the timezone from the result of matplotlib.dates.num2date (which includes UTC)"""
     return num2date(x).replace(tzinfo=None)
 
 
-# ========= ユーザ設定 =========
+# ========= User Settings =========
 HISTORY_XLSX = "history_db.xlsx"
-ERRORS_XLSX  = "db_panel_B_shared_error_summary.xlsx"  # 任意
+ERRORS_XLSX  = "db_panel_B_shared_error_summary.xlsx" # shared error data
 
 OUTPUT_DIR   = "db_graph_outputs"
 FIG_PNG      = "timeline_network.png"
-FIG_SVG      = "timeline_network.svg"  # Inkscape用の編集可能SVG
-EXPORT_SVG   = True                    # SVGを書き出すか
-SVG_TEXT_AS_PATH = False               # Trueにするとテキストをパス化（編集は難、表示は安定）
+FIG_SVG      = "timeline_network.svg"  # editable SVG for Inkscape
+EXPORT_SVG   = True                    # whether to export SVG
+SVG_TEXT_AS_PATH = False               # if True, text is converted to paths (harder to edit, more stable display)
 NODE_CSV     = "nodes.csv"
 EDGE_CSV     = "edges.csv"
 GRAPH_PKL    = "graph.gpickle"
 
-# フォント（必要ならローカルフォントを明示）
-FONT_PATH = None  # 例: r"C:\Windows\Fonts\meiryo.ttc" / "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+# Font (specify local font if needed)
+FONT_PATH = None  # e.g., r"C:\Windows\Fonts\meiryo.ttc" / "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
 
-# ---- レイアウト選択 ----
-LAYOUT_MODE = "time_optim"   # "time_optim" / "barycenter" / "hierarchy" / "spring"
+# ---- Layout selection ----
+LAYOUT_MODE = "time_optim"   # "time_optim" / "barycenter" / "hierarchy" / "spring". We recommend "time_optim".
 
-# (time_optim) 固定x・最適分散yのパラメータ
+# (time_optim) fixed x, optimal dispersion y parameters
 SPRING_SEED = 42
 HYBRID_SPRING_K = 50 # initial = 50
 HYBRID_SPRING_ITER = 600
 HYBRID_SPRING_SCALE_Y = 36.0
 HYBRID_USE_INIT_POS = True
 
-# 近接xでの縦方向デコリジョン（time_optim用）
-NEAR_X_DAYS        = 70     # この日数以内にxが近いと反発対象, initial 35
-MIN_Y_GAP_NEAR_X   = 1.7   # 近いx同士で確保したい最小縦間隔, initial = 0.85
+# (time_optim) vertical decorrelation for near x
+NEAR_X_DAYS        = 70     # Repulsion target if x is close within this number of days, initial 35
+MIN_Y_GAP_NEAR_X   = 1.7   # Minimum vertical gap to secure for close x, initial = 0.85
 Y_SPREAD_PASSES    = 6
 Y_SPREAD_COOLING   = 0.6
 
-# (A) barycenter（y=交差削減＋時間層バンド）
+# (A) barycenter（y=crossing reduction + time layer bands）. Not used in the default layout="time_optim".
 TIME_UNIT   = "M"           # "Y" / "M" / "D"
 BARYCENTER_ITERS = 16
 BARYCENTER_GAP   = 1.2
@@ -100,12 +100,12 @@ EDGE_GROUP_BUNDLE = True
 EDGE_CURVE_BASE   = 0.12 # initial 0.12
 EDGE_CURVE_SPREAD = 0.20 # initial 0.20
 
-# (B) hierarchy（y=供給→利用の階層）
+# (B) hierarchy（y=supply → use hierarchy）. not used in the default layout="time_optim".
 HIER_LAYER_STEP_Y = 3.0
 HIER_INTRA_GAP_Y  = 1.0
 HIER_ITERS        = 12
 
-# ---- 描画 ----
+# ---- Drawing ----
 FIG_SIZE = (26, 14)
 DPI = 260
 LABEL_MAXLEN = 28
@@ -114,68 +114,70 @@ NODE_SIZE = 500.0
 PAD_DAYS = 90
 PAD_FRAC_Y = 0.12
 ARROWSIZE = 30
-OVERLAY_WIDTH_CT = 2.2  # citing 点線
-OVERLAY_WIDTH_DS = 2.2  # data_source 実線
+OVERLAY_WIDTH_CT = 2.2  # citing: dot line
+OVERLAY_WIDTH_DS = 2.2  # data_source: solid line
 CITING_ALPHA   = 0.55
 DATASRC_ALPHA  = 0.75
 
-# === 年ラベル/グリッド設定 ===
+# === Year label/grid settings ===
 SHOW_XLABEL = True
 XLABEL_FONTSIZE = 20
 XLABEL_TEXT = "Estimated first online date (Year)"
 
-SHOW_YEAR_TICKS = True     # x軸を年単位で区切る
-YEAR_TICK_STEP = 1         # 1年ごと（2や5にすると粗くできる）
-YEAR_FORMAT = "%Y"         # 目盛りラベルのフォーマット
+SHOW_YEAR_TICKS = True     # Separate x-axis by year
+YEAR_TICK_STEP = 1         # 1 year intervals (can be coarser with 2 or 5)
+YEAR_FORMAT = "%Y"         # Format for tick labels
 
-SHOW_YEAR_GRID = True      # 年ごとの縦グリッドを薄く表示
+SHOW_YEAR_GRID = True      # Vertical grid lines for each year
 YEAR_GRID_ALPHA = 0.5
 
-SHOW_YEAR_BANDS = False    # 交互に年ごとの薄い縦帯を引く（見やすさ重視ならTrue）
+SHOW_YEAR_BANDS = False    # Alternate light vertical bands for each year (set True for better visibility)
 YEAR_BAND_ALPHA = 0.05
 
-# 年数テキスト（縦ラインや帯に対応する数字）を図中下辺に並べて表示
+# Year number text (numbers corresponding to vertical lines or bands) displayed along the bottom edge of the figure
 SHOW_YEAR_NUMBERS = True
-YEAR_NUMBER_STEP = 1          # 1なら毎年, 2や5で間引き
-YEAR_NUMBERS_AT = "mid"       # "mid"=その年の真ん中(7/1)に配置, "lines"=年初(1/1)の縦ライン上
+YEAR_NUMBER_STEP = 1          # 1: every year, 2 or 5 to thin out
+YEAR_NUMBERS_AT = "mid"       # "mid"=placed in the middle of the year (7/1), "lines"=on the vertical line at the beginning of the year (1/1)
 YEAR_NUMBER_FONTSIZE = 20
-YEAR_NUMBER_OFFSET_AX = 0.01  # 下端からのオフセット(軸座標). 0より大でクリップされにくい
-YEAR_NUMBER_ROTATE = 0        # 必要なら 90 に
-
-# ---- heat（共有エラー帯）----
+YEAR_NUMBER_OFFSET_AX = 0.01  # Offset from the bottom edge (axis coordinates). Greater than 0 to avoid clipping
+YEAR_NUMBER_ROTATE = 0        # Rotate if necessary, e.g., 90
+# ---- heat (shared error bands) ----
 HEAT_CMAP_NAME = "Reds"
 HEAT_VMAX_MODE = "max"      # "max" or "p95"
 HEAT_ALPHA     = 0.7
 HEAT_LINE_BASE = 6.0
 HEAT_LINE_GAIN = 3.0
 
-# ---- 入力拡張 ----
+# ---- Input extension ----
 CREATE_HEAT_ONLY_EDGES = True
-CREATE_NODES_FROM_ERRORS = True
+CREATE_NODES_FROM_ERRORS = True 
+# CREATE_NODES_FROM_ERRORS = True:Not effective in our case, 
+# since nodes added only from errors_df have no earliest date, and 
+# these nodes will be placed at a default x-position slightly before the earliest dated database.
+# In our case there are no such nodes, so the option is kept set to True for potential future use.
 
-# ---- 手動オフセットCSV ----
+# ---- Manual offset CSV ----
 POS_NUDGE_CSV = "pos_nudge.csv"    # internal_key or Database_name, dx, dy
 WRITE_AUDIT = True
 
-# === make_graph_4.pyに追加 ===
-# ノードの見た目と倍率
-BASE_WHITE_NODE = (0.95, 0.95, 0.95)  # 薄い白系グレー
-EDGE_GRAY = (0.8, 0.8, 0.8)          # 外周の薄灰
-NODE_SIZE_SCALE = 3.0                # ノードサイズ倍率（3倍）
-NODE_EDGE_LINEWIDTH = 1.2            # 外周線の太さ
+# Node appearance and scale
+BASE_WHITE_NODE = (0.95, 0.95, 0.95)  # Light white-gray
+EDGE_GRAY = (0.8, 0.8, 0.8)          # Light gray for edges
+NODE_SIZE_SCALE = 3.0                # Node size scale (3x)
+NODE_EDGE_LINEWIDTH = 1.2            # Edge line width
 
-# ラベルの文字サイズ（調整用）
-LABEL_FONT_SIZE = 20                 # デフォルトより少し大きめ
+# Label font size (for adjustment)
+LABEL_FONT_SIZE = 20                 # Slightly larger than default
 
-# --- x軸を矢印表示にするオプション ---
+# --- Option to display x-axis as arrow ---
 XAXIS_AS_ARROW = True
-XAXIS_ARROW_MUTSCALE = 40       # 矢印ヘッドのサイズ
-XAXIS_ARROW_LINEWIDTH = 5     # 軸線の太さ
-XAXIS_ARROW_EXTRA_DAYS = -180   # 矢印の先端を少しはみ出させる余白（日）, 2025の真ん中くらいまでのばす
-XAXIS_ARROW_LEFT_EXTRA_DAYS = 90  # 左に何日はみ出すか（正で左に延びる）, 90日伸ばして2022年を最初からカバーできるように調整
-FORCE_RIGHT_YEAR = 2025         # 軸ラベルと矢印を最低でもこの年まで伸ばす（Noneで無効）
-HIDE_BOX_SPINES = True          # 囲み枠(Spines)を消す
-HIDE_X_TICKS = True             # もとのx目盛りの線やチックを隠す（年数字は下辺テキストで表示）
+XAXIS_ARROW_MUTSCALE = 40       # Arrowhead size
+XAXIS_ARROW_LINEWIDTH = 5     # Axis line width
+XAXIS_ARROW_EXTRA_DAYS = -180   # Extra margin for arrow tip (days), extends to around the middle of 2025
+XAXIS_ARROW_LEFT_EXTRA_DAYS = 90  # How many days to extend to the left (positive extends left), extended by 90 days to cover 2022 from the start
+FORCE_RIGHT_YEAR = 2025         # Extend axis label and arrow at least to this year (None to disable)
+HIDE_BOX_SPINES = True          # Hide box spines
+HIDE_X_TICKS = True             # Hide original x-axis tick lines and marks (year numbers are displayed as text along the bottom edge)
 
 # ============================
 
@@ -186,7 +188,7 @@ def _setup_font() -> FontProperties:
     rcParams['axes.unicode_minus'] = False
     try:
         rcParams['svg.fonttype'] = 'path' if SVG_TEXT_AS_PATH else 'none'
-        # テキストをなるべくそのまま埋める（Matplotlibの一部環境で有効）
+        # Embed text as is as much as possible (effective in some Matplotlib environments)
         rcParams['text.usetex'] = False
     except Exception:
         pass
@@ -206,7 +208,7 @@ def _setup_font() -> FontProperties:
             return FontProperties(family=name)
     return FontProperties(family=rcParams.get('font.family', 'sans-serif'))
 
-# -------- 正規化/パース --------
+# -------- no normalization/parsing --------
 _ZW_CHARS = "".join(["\u200B","\u200C","\u200D","\uFEFF"])
 _PUNCT_TAIL = r"[.\u3002\uFF0E,\uFF0C;\uFF1B:\uFF1A、。．；：]+$"
 _SPLIT_RE = re.compile(r"[;,、，]+")
@@ -275,13 +277,13 @@ def pick_earliest(row: pd.Series):
             dt = try_parse_date(row[col]); dt and cands.append(dt)
     return min(cands) if cands else None
 
-# -------- グラフ構築 --------
+# -------- Graph construction --------
 def build_graph(history_df: pd.DataFrame, errors_df: pd.DataFrame):
     G = nx.DiGraph()
     name_col = None
     for cand in ["Database_name","database_name","DB","Name"]:
         if cand in history_df.columns: name_col = cand; break
-    if not name_col: raise ValueError("Database_name 列が見つかりません。")
+    if not name_col: raise ValueError("Database_name column not found.")
 
     citing_col = "citing" if "citing" in history_df.columns else None
     ds_col     = "data_source" if "data_source" in history_df.columns else None
@@ -315,7 +317,7 @@ def build_graph(history_df: pd.DataFrame, errors_df: pd.DataFrame):
             skipped.append({"from": a_key, "to": b_key, "kind": kind, "reason":"unknown_target"}); return
         if a_key not in VALID:
             skipped.append({"from": a_key, "to": b_key, "kind": kind, "reason":"unknown_source"}); return
-        # 供給 b → 利用 a
+        # Supply b → Use a
         src, dst = b_key, a_key
         if G.has_edge(src, dst):
             kinds = set(G[src][dst].get("kinds", [])); kinds.add(kind)
@@ -372,11 +374,11 @@ def build_graph(history_df: pd.DataFrame, errors_df: pd.DataFrame):
         ensure_dir(Path(OUTPUT_DIR))
         if bad_name_rows:
             pd.DataFrame(bad_name_rows).to_csv(Path(OUTPUT_DIR)/"bad_database_names.csv", index=False)
-            warnings.warn("Database_name に区切り(,;/)を含む行があります。bad_database_names.csv を確認。")
+            warnings.warn("There are rows in Database_name containing delimiters (,;/). Please check bad_database_names.csv.")
         if 'skipped' in locals() and skipped:
             pd.DataFrame(skipped).to_csv(Path(OUTPUT_DIR)/"skipped_unknown_references.csv", index=False)
 
-    # earliest の型整形（すべて naive に統一）
+    # Normalize earliest type (all unified to naive)
     for n, d in G.nodes(data=True):
         d["earliest"] = _to_naive_datetime(d.get("earliest"))
 
@@ -399,7 +401,7 @@ def build_graph(history_df: pd.DataFrame, errors_df: pd.DataFrame):
 
     return G, nodes_df, edges_df
 
-# -------- ユーティリティ --------
+# -------- Utilities --------
 def _time_bin(dt, unit="M"):
     if dt is None: return None
     if isinstance(dt, pd.Timestamp): dt = dt.to_pydatetime()
@@ -417,19 +419,19 @@ def debug_layers(G, unit):
     print(f"[DEBUG] unit={unit} 層数={len(c)} 例: {list(c.items())[:10]}")
     return len(c), list(c.keys())
 
-# -------- 近接ノードの縦方向デコリジョン（x固定） --------
+# -------- Vertical de-collision of nearby nodes (x fixed) --------
 def spread_nearby_nodes_in_y(pos: Dict[str, Tuple[float, float]],
                              near_x_days=NEAR_X_DAYS,
                              min_y_gap=MIN_Y_GAP_NEAR_X,
                              passes=Y_SPREAD_PASSES,
                              cooling=Y_SPREAD_COOLING) -> Dict[str, Tuple[float, float]]:
-    """x は固定のまま、xが近いペアに縦方向の反発を与えて密集をほどく。"""
+    """Keep x fixed, apply vertical repulsion to pairs with close x to spread out dense clusters."""
     if not pos: return pos
     keys = list(pos.keys())
     xs = np.array([pos[k][0] for k in keys], dtype=float)
     ys = np.array([pos[k][1] for k in keys], dtype=float)
 
-    # ビンは「±1 も同時に参照」して局所密集を捉える（オーバーラップを許容）
+    # Bins refer to "±1" simultaneously to capture local clusters (allowing overlap)
     bin_w = float(near_x_days)
     bins = defaultdict(list)
     for i, x in enumerate(xs):
@@ -454,15 +456,15 @@ def spread_nearby_nodes_in_y(pos: Dict[str, Tuple[float, float]],
         ys -= np.mean(ys)
     return {k: (xs[i], float(ys[i])) for i, k in enumerate(keys)}
 
-# -------- レイアウト：time_optim（x=earliest固定 / y=最適分散） --------
+# -------- Layout: time_optim (x=earliest fixed / y=optimal spread) --------
 def layout_time_optim(G: nx.DiGraph) -> Dict[str, Tuple[float, float]]:
-    # x は earliest を date2num で固定
+    # x is fixed by earliest using date2num
     dates = [d.get("earliest") for _, d in G.nodes(data=True) if d.get("earliest") is not None]
     default_x = (date2num(min(dates)) - 30) if dates else 0.0
     x_map = {n: (date2num(d.get("earliest")) if d.get("earliest") is not None else default_x)
              for n, d in G.nodes(data=True)}
 
-    # y は spring_layout（undirected）で初期化 → 中心化
+    # y is initialized by spring_layout (undirected) → centering
     pos0 = None
     if HYBRID_USE_INIT_POS:
         rng = random.Random(SPRING_SEED if SPRING_SEED is not None else 42)
@@ -479,7 +481,7 @@ def layout_time_optim(G: nx.DiGraph) -> Dict[str, Tuple[float, float]]:
     y_mean = sum(ys) / len(ys) if ys else 0.0
     pos = {n: (x_map[n], pos_s[n][1] - y_mean) for n in G.nodes()}
 
-    # 近いxのノード同士に縦反発（間引き）を複数パス
+    # Apply vertical repulsion (thinning) to nodes with close x multiple passes
     pos = spread_nearby_nodes_in_y(pos,
                                    near_x_days=NEAR_X_DAYS,
                                    min_y_gap=MIN_Y_GAP_NEAR_X,
@@ -487,7 +489,7 @@ def layout_time_optim(G: nx.DiGraph) -> Dict[str, Tuple[float, float]]:
                                    cooling=Y_SPREAD_COOLING)
     return pos
 
-# -------- レイアウト：spring（従来：x=earliest固定 / y=ばねのみ） --------
+# -------- Layout: spring (traditional: x=earliest fixed / y=spring only) --------
 def layout_timeline_forcey(G: nx.DiGraph) -> Dict[str, Tuple[float, float]]:
     dates = [d.get("earliest") for _, d in G.nodes(data=True) if d.get("earliest") is not None]
     default_x = (date2num(min(dates)) - 30) if dates else 0.0
@@ -509,7 +511,7 @@ def layout_timeline_forcey(G: nx.DiGraph) -> Dict[str, Tuple[float, float]]:
     y_mean = sum(ys) / len(ys) if ys else 0.0
     return {n: (x_map[n], pos_s[n][1] - y_mean) for n in G.nodes()}
 
-# -------- レイアウト：barycenter（時間層）・hierarchy（供給階層） --------
+# -------- Layout: barycenter (time layers) / hierarchy (supply layers) --------
 def layout_timeline_barycenter(G: nx.DiGraph, unit="M", iters=16, gap=1.2):
     dates = [d.get("earliest") for _, d in G.nodes(data=True) if d.get("earliest") is not None]
     default_x = (date2num(min(dates)) - 30) if dates else 0.0
@@ -625,7 +627,7 @@ def layout_hierarchy_by_datasource(G: nx.DiGraph,
     y_mean = sum(ys)/len(ys)
     return {n: (pos[n][0], pos[n][1]-y_mean) for n in pos}
 
-# -------- 手動オフセット -------- 後半の間作用を残す, こちらは簡易版でありコメントアウト
+# -------- Manual offset -------- this is a simplified version and commented out
 #def apply_pos_nudges(G, pos, csv_path=POS_NUDGE_CSV):
 #    p = Path(csv_path)
 #    if not p.exists():
@@ -649,8 +651,8 @@ def layout_hierarchy_by_datasource(G: nx.DiGraph,
 #            x, y = pos[key]; pos[key] = (x + dx, y + dy)
 #    return pos
 
-# -------- 曲率（ゆるいバンドル：エッジ描画は従来のまま） --------
-#def_time_binはすでに設定済みなのでコメントアウト
+# -------- Curvature (loose bundling: edge drawing remains traditional) --------
+#def_time_bin has already been set, therefore this block is commented out
 #def _time_bin(dt, unit="M"):
 #    if dt is None: return None
 #    if isinstance(dt, pd.Timestamp): dt = dt.to_pydatetime()
@@ -752,7 +754,7 @@ def apply_pos_nudges(G, pos, csv_path=POS_NUDGE_CSV):
 
     return newpos
 
-# -------- 描画（従来どおり） --------
+# -------- Drawing --------
 def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Path, layout_mode="time_optim"):
     fp = _setup_font()
     fig, ax = plt.subplots(figsize=FIG_SIZE, dpi=DPI)
@@ -768,7 +770,7 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
         x0_dt = _num2date_naive(xmin)
         x1_dt = _num2date_naive(xmax)
 
-        # === x軸（年）ラベリング ===
+        # === x-axis (year) labeling ===
         if SHOW_YEAR_TICKS:
             ax.xaxis.set_major_locator(YearLocator(base=YEAR_TICK_STEP))
             ax.xaxis.set_major_formatter(DateFormatter(YEAR_FORMAT))
@@ -783,13 +785,13 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
                 if y % 2 == 0:
                     ax.axvspan(x_left, x_right, color="gray", alpha=YEAR_BAND_ALPHA, zorder=0)
 
-        # === x軸を矢印で描く ===
+        # === Draw x-axis as arrow ===
         if XAXIS_AS_ARROW and xs:
-            # 矢印の始点・終点（xはData座標、yはAxes座標で0=下端）
+            # Arrow start and end points (x in Data coordinates, y in Axes coordinates with 0=bottom)
             trans = mtransforms.blended_transform_factory(ax.transData, ax.transAxes)
 
             x_arrow_start = xmin - XAXIS_ARROW_LEFT_EXTRA_DAYS
-            # 右端はデータ最大か、FORCE_RIGHT_YEARの年末+余白のうち大きい方へ
+            # The right end of the arrow is the larger of the data maximum or the end of FORCE_RIGHT_YEAR plus margin
             x_force_right = date2num(datetime(FORCE_RIGHT_YEAR, 12, 31)) if FORCE_RIGHT_YEAR else xmax
             x_arrow_end = max(xmax, x_force_right) + XAXIS_ARROW_EXTRA_DAYS
 
@@ -804,30 +806,30 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
                 joinstyle="miter", 
                 color="black"
                 ),
-                annotation_clip=False  # 軸外にはみ出しても描画する
+                annotation_clip=False  # draw even if it goes outside the axis
             )
 
             x_left, x_right = ax.get_xlim()
             ax.set_xlim(x_left, max(x_right, x_arrow_end))
 
-            # 囲み枠や既存チックを消して"箱"をなくす
+            # Remove box spines and existing ticks to eliminate the "box"
             if HIDE_BOX_SPINES:
                 for side in ["top", "right", "left", "bottom"]:
                     ax.spines[side].set_visible(False)
             if HIDE_X_TICKS:
-                ax.tick_params(axis='x', length=0)  # 目盛り線を消す
+                ax.tick_params(axis='x', length=0)  # Remove tick marks
 
-        # ★右端年を強制的に少なくとも FORCE_RIGHT_YEAR までにする
+        # ★ Force the rightmost year to be at least FORCE_RIGHT_YEAR
         if FORCE_RIGHT_YEAR:
             x1_dt_for_labels = max(x1_dt, datetime(FORCE_RIGHT_YEAR, 1, 1))
         else:
             x1_dt_for_labels = x1_dt
 
         y_start = x0_dt.year
-        y_end   = x1_dt_for_labels.year + 1 # ← ここを x1_dt ではなく x1_dt_for_labels を使う
+        y_end   = x1_dt_for_labels.year + 1 # ← x1_dt_for_labels is used rather than x1_dt
 
-        trans = ax.get_xaxis_transform()  # x=data, y=axes のブレンド済みTransform
-        y_ax  = YEAR_NUMBER_OFFSET_AX  # 軸座標（0=下端, 1=上端）
+        trans = ax.get_xaxis_transform()  # x=data, y=axes blended transform
+        y_ax  = YEAR_NUMBER_OFFSET_AX  # axis coordinates (0=bottom, 1=top)
 
         for y in range(y_start, y_end):
             if (y - y_start) % YEAR_NUMBER_STEP != 0:
@@ -835,7 +837,7 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
             if YEAR_NUMBERS_AT == "lines":
                 x_pos = date2num(datetime(y, 1, 1))
             else:  # "mid"
-                x_pos = date2num(datetime(y, 7, 1))  # その年の中央に配置
+                x_pos = date2num(datetime(y, 7, 1))  # setting to the middle of the year
 
             ax.text(
                 x_pos, y_ax, f"{y}",
@@ -850,7 +852,7 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
     if SHOW_XLABEL:
         ax.set_xlabel(XLABEL_TEXT, fontsize=XLABEL_FONTSIZE)
 
-    # 背景ストライプ（barycenter の層を視認）
+    # Background stripes (to visualize layers in barycenter)
     if layout_mode.lower() == "barycenter" and VERTICAL_BANDS_BY_TIME:
         bins = {}
         for n, d in G.nodes(data=True):
@@ -868,7 +870,7 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
             y1 = band + layer_height*0.55
             ax.axhspan(y0, y1, alpha=0.05, color="gray")
 
-    # エッジ分類（元仕様）
+    # Edge classification
     cite_edges, data_edges, both_edges = [], [], []
     for u, v, d in G.edges(data=True):
         kinds = set(d.get("kinds", []))
@@ -879,46 +881,38 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
         elif "citing" in kinds:
             cite_edges.append((u, v))
 
-    # heat 正規化
+    # heat normalization
     vals = [float(G[u][v].get("shared_err_count", 0.0)) for u, v in G.edges()]
     vmax = 1.0
     if vals:
         vmax = max(1.0, float(np.percentile(vals, 95)) if HEAT_VMAX_MODE == "p95" else max(vals))
     norm = mcolors.Normalize(vmin=0.0, vmax=vmax)
-    cmap = cm.get_cmap(HEAT_CMAP_NAME)
+    cmap = matplotlib.colormaps.get_cmap(HEAT_CMAP_NAME)
 
-        # heat 正規化
-    vals = [float(G[u][v].get("shared_err_count", 0.0)) for u, v in G.edges()]
-    vmax = 1.0
-    if vals:
-        vmax = max(1.0, float(np.percentile(vals, 95)) if HEAT_VMAX_MODE == "p95" else max(vals))
-    norm = mcolors.Normalize(vmin=0.0, vmax=vmax)
-    cmap = cm.get_cmap(HEAT_CMAP_NAME)
-
-    # === 追加：右端カラーバー（alpha を可能な限り継承）===
+    # === Color scale bar setting (inherit alpha as much as possible)===
     try:
-        # カラーバー用に alpha を固定で乗せた ListedColormap を作る
+        # Create a ListedColormap with fixed alpha for the colorbar
         _colors = cmap(np.linspace(0, 1, 256))
-        _colors[:, -1] = HEAT_ALPHA  # 共有エラー帯と同じ透明度
+        _colors[:, -1] = HEAT_ALPHA  # the same transparency as shared error bands
         cmap_for_cb = mcolors.ListedColormap(_colors)
     except Exception:
-        # 失敗時は素の cmap を使う（見た目は不透明）
+        # If it fails, use the raw cmap (appearance will be opaque)
         cmap_for_cb = cmap
 
     mappable = cm.ScalarMappable(norm=norm, cmap=cmap_for_cb)
-    mappable.set_array([])  # 古いMatplotlibで必要な場合がある
+    mappable.set_array([])  # may be needed for older Matplotlib versions
 
-    # 右側に薄めのカラーバーを追加（pad/fractionはレイアウト影響を最小化）
+    # Add a faint colorbar on the right side (pad/fraction minimize layout impact)
     cbar = fig.colorbar(
         mappable, ax=ax,
         location="right",
-        pad=0.02,        # 軸との隙間
-        fraction=0.035   # カラーバーの幅の細さ
+        pad=0.02,        # space between axis and colorbar
+        fraction=0.035   # colorbar width
     )
-    # ラベル（p95キャップ時は注記）
+    # Label (note when p95-capped)
     _cap_note = " (p95-capped)" if HEAT_VMAX_MODE == "p95" else ""
-    cbar.set_label(f"Shared errors{_cap_note}", rotation=90, fontsize=20) # fontsize追加
-    # 目盛りは自動に任せるが、0始まりを保証
+    cbar.set_label(f"Shared errors{_cap_note}", rotation=90, fontsize=20) 
+    # Ticks are automatic, but ensure starting at 0
     try:
         ticks = cbar.get_ticks()
         if ticks is not None and len(ticks) > 0 and ticks[0] > 0:
@@ -926,10 +920,10 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
     except Exception:
         pass
 
-    cbar.ax.tick_params(labelsize=16) # 目盛りフォントサイズ調整
-    # === 追加ここまで ===
+    cbar.ax.tick_params(labelsize=16) 
+    
 
-    node_radius_pts = 0.5 * math.sqrt(NODE_SIZE * NODE_SIZE_SCALE) + 2.0 # 拡大後の見た目に揃えるためにmake_graph_4.pyから変更
+    node_radius_pts = 0.5 * math.sqrt(NODE_SIZE * NODE_SIZE_SCALE) + 2.0 # unify the appearance after scaling
 
     def _heat_color_and_width(u, v):
         val = float(G[u][v].get("shared_err_count", 0.0))
@@ -942,10 +936,10 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
 
     curv_map = _build_edge_curvatures(G, unit=TIME_UNIT)
 
-    overlay_drawn = [] # 描画順番を制御するために使用
+    overlay_drawn = [] # used to control drawing order
     def _draw_edge(u, v, style, color, width, alpha, curve):
         conn = (f"arc3,rad={curve}" if curve else None)
-        # 太線（heat）
+        # thick line (heat)
         color_heat, w_heat = _heat_color_and_width(u, v)
         if w_heat > 0:
             try:
@@ -959,7 +953,7 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
                     arrows=True, arrowstyle="-", style="solid",
                     width=w_heat, edge_color=color_heat,
                     connectionstyle=conn, arrowsize=1)
-        # 細線（overlay）
+        # thin line (overlay)
         try:
             nx.draw_networkx_edges(G, pos, edgelist=[(u,v)], ax=ax,
                 arrows=True, arrowstyle="-|>",
@@ -974,16 +968,16 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
         
         overlay_drawn.append((u, v))
 
-    # data_source（実線） + both を先に
+    # data_source (solid line) + both first
     for (u, v) in (data_edges + both_edges):
         _draw_edge(u, v, style="solid", color=(0.05,0.05,0.05),
                    width=OVERLAY_WIDTH_DS, alpha=DATASRC_ALPHA, curve=curv_map[(u,v)])
-    # citing（点線）
+    # citing (dotted line)
     for (u, v) in cite_edges:
         _draw_edge(u, v, style="dotted", color=(0.18,0.18,0.18),
                    width=OVERLAY_WIDTH_CT, alpha=CITING_ALPHA, curve=curv_map[(u,v)])
 
-    # heat_only（帯のみ）
+    # heat_only (band only)
     heat_only_edges = [(u, v) for u, v, d in G.edges(data=True) if "heat_only" in set(d.get("kinds", []))]
     for (u, v) in heat_only_edges:
         conn = (f"arc3,rad={curv_map[(u,v)]}" if curv_map else None)
@@ -999,17 +993,17 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
                     arrows=True, arrowstyle="-", style="solid", width=w, edge_color=color,
                     connectionstyle=conn, arrowsize=1)
     
-    # === overlay (実線・点線) の矢印を最前面に持ってくる ===
+    # === overlay (solid and dotted lines) arrows to front ===
     for p in ax.patches:
         if isinstance(p, FancyArrowPatch):
             style = p.get_arrowstyle()
-            # ArrowStyle の種類によって属性が違うので、文字列で安全に判定する
+            # Different attributes depending on ArrowStyle type, so safely check with string
             if "-|>" in str(style):
                 p.set_zorder(10)
 
-    # --- 凡例を追加 ---
+    # --- Add legend ---
     legend_elements = [
-        # citation + data resource（実線）
+        # citation + data resource (solid line)
         Line2D(
             [0,1], [0,0],
             color=(0.05, 0.05, 0.05),
@@ -1021,7 +1015,7 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
             label="citation + data resource (from data source → user)"
         ),
 
-        # citation only（点線）
+        # citation only (dotted line)
         Line2D(
             [0,1], [0,0],
             color=(0.18, 0.18, 0.18),
@@ -1036,12 +1030,12 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
 
 
     ax.legend(handles=legend_elements,
-              loc="upper left",  # 位置は好みで変更可
+              loc="upper left",  # position can be changed as desired
               frameon=False, 
               fontsize=20)
 
 
-    # ノードとラベル
+    # Nodes and labels
     nx.draw_networkx_nodes(
     G, pos, ax=ax,
     node_size=NODE_SIZE * NODE_SIZE_SCALE,
@@ -1063,12 +1057,12 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
     except Exception:
         nx.draw_networkx_labels(G, pos, labels=labels, font_size=LABEL_FONT_SIZE, font_family=fp.get_name(), ax=ax)
 
-    # 軸：time_optim でも時系列（x軸）は日付として描画
+    # Axis: even with time_optim, draw time series (x-axis) as dates
     fig.autofmt_xdate()
     ax.xaxis_date()
     ax.set_yticks([])
 
-    # クリップ解除
+    # Disable clipping
     for coll in list(ax.collections):
         try: coll.set_clip_on(False); coll.set_clip_box(None)
         except: pass
@@ -1086,20 +1080,20 @@ def plot_graph(G: nx.DiGraph, pos: Dict[str, Tuple[float, float]], out_path: Pat
     ax.set_title(ttl)
 
     plt.tight_layout()
-    plt.subplots_adjust(bottom=0.06)  # 0.05〜0.08あたりで微調整
-    # PNG（ラスター）
+    plt.subplots_adjust(bottom=0.06)  # recommend: adjust around 0.05 to 0.08
+    # PNG (raster)
     fig.savefig(out_path, dpi=DPI, bbox_inches="tight", pad_inches=0.25)
-    # === 追加：SVG（ベクター；Inkscape編集用） ===
+    # === Add: SVG (vector; for Inkscape editing) ===
     if EXPORT_SVG:
         svg_path = out_path.with_suffix(".svg") if FIG_SVG is None else (out_path.parent / FIG_SVG)
-        # SVGはDPI不要（ベクター）。背景白が不要なら facecolor="none" なども可。
+        # SVG does not require DPI (vector). If white background is not needed, facecolor="none" can be used.
         fig.savefig(svg_path, format="svg", bbox_inches="tight", pad_inches=0.25)
     plt.close(fig)
 
 
-# -------- メイン --------
+# -------- Main --------
 def main(history_xlsx=HISTORY_XLSX, errors_xlsx=ERRORS_XLSX):
-    # 一時的に main の冒頭あたりに追加
+    # Temporarily added near the beginning of main -> permanent logging later
     from pathlib import Path
     print("POS_NUDGE_CSV ->", Path(POS_NUDGE_CSV).resolve(), "exists?", Path(POS_NUDGE_CSV).exists())
 
@@ -1108,12 +1102,12 @@ def main(history_xlsx=HISTORY_XLSX, errors_xlsx=ERRORS_XLSX):
     try:
         errors_df = pd.read_excel(errors_xlsx)
     except Exception:
-        warnings.warn(f"{errors_xlsx} を読み込めませんでした。共有エラーはスキップ。")
+        warnings.warn(f"{errors_xlsx} could not be loaded. Shared errors are skipped.")
         errors_df = pd.DataFrame()
 
     G, nodes_df, edges_df = build_graph(history_df, errors_df)
 
-    # 位置計算
+    # Position calculation
     lm = LAYOUT_MODE.lower()
     if lm == "time_optim":
         pos = layout_time_optim(G)
@@ -1128,13 +1122,13 @@ def main(history_xlsx=HISTORY_XLSX, errors_xlsx=ERRORS_XLSX):
     else:
         pos = layout_timeline_forcey(G)
 
-    # 手動オフセット適用（任意）
+    # Apply manual offset (optional)
     pos = apply_pos_nudges(G, pos, POS_NUDGE_CSV)
 
-    # 描画（エッジ描画は従来どおり）
+    # Drawing
     plot_graph(G, pos, Path(OUTPUT_DIR) / FIG_PNG, layout_mode=lm)
 
-    # 保存
+    # Save
     nodes_df.to_csv(Path(OUTPUT_DIR) / NODE_CSV, index=False)
     edges_df.to_csv(Path(OUTPUT_DIR) / EDGE_CSV, index=False)
     with open(Path(OUTPUT_DIR) / GRAPH_PKL, "wb") as f:
