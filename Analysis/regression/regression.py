@@ -2,8 +2,8 @@
 import os, re
 import numpy as np
 import pandas as pd
-import matplotlib # SVGでフォント編集のために必要
-matplotlib.rcParams['svg.fonttype'] = 'none' # SVGでテキストをフォント情報として保存
+import matplotlib # for editing fonts in SVG
+matplotlib.rcParams['svg.fonttype'] = 'none' # Save text as font information in SVG
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.patches import Rectangle
@@ -13,13 +13,13 @@ import patsy
 from statsmodels.genmod.generalized_estimating_equations import GEE
 from statsmodels.genmod.cov_struct import Exchangeable
 
-# ========= 設定 =========
+# ========= settings =========
 DATA_XLSX = "chccsrtdb_analysis.xlsx"
 SHEET = 0
 OUT_DIR = "combo_out"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# 図レイアウト・見た目（従来値を維持）
+# Figure layout and appearance settings
 WIDTH_PER_DB = 2.1
 TOP_HEIGHT   = 14.0
 BOT_HEIGHT   = 8.0
@@ -27,7 +27,7 @@ TOP_BOT_HSPACE = 0.15
 
 BAR_ALPHA = 0.9
 BAR_COL_ERR = (0.80, 0.20, 0.20)  # Error
-BAR_COL_UNV = (0.95, 0.70, 0.70)  # Unverified（旧NCに相当する薄赤を流用）
+BAR_COL_UNV = (0.95, 0.70, 0.70)  # Not confirmed
 BAR_WIDTH   = 0.90
 LABEL_FONTSIZE = 16
 PCT_FONTSIZE   = 18 # default 14
@@ -42,7 +42,7 @@ CELL_COL_SAMPLE  = (0.78, 0.92, 0.78)
 SCATTER_GRAY = (0.6, 0.6, 0.6)
 LABEL_DY = 0.006
 
-# ========= 旧metadata_errors用（後方互換） =========
+# ========= For legacy metadata_errors (backward compatibility) =========
 def tokenize_top_level_semicol(raw) -> list:
     if pd.isna(raw): return []
     s = str(raw)
@@ -69,13 +69,13 @@ def count_primary_errors_from_metadata_errors(s):
     if pd.isna(s): return 0
     return len(_pat_pair.findall(str(s)))
 
-# ========= 新カラム対応 =========
-# cancer_srt_corrections: "A -> B" の出現数
+# ========= New column support =========
+# cancer_srt_corrections: count of "A -> B" occurrences
 def count_corrections(s):
     if pd.isna(s): return 0
     text = str(s).strip()
     if not text: return 0
-    parts = re.split(r'[;\n\|/]+', text)  # ; | / 改行で素朴分割
+    parts = re.split(r'[;\n\|/]+', text)  # ; | / newline for naive splitting
     cnt = 0
     for p in parts:
         if '->' in p:
@@ -83,25 +83,25 @@ def count_corrections(s):
             if a and b: cnt += 1
     return cnt
 
-# unverified_flag: not_confirmed を独立トークンとして検出（大小文字非依存）
+# unverified_flag: detect "not_confirmed" as an independent token (case-insensitive)
 def parse_is_unverified(s) -> int:
     if pd.isna(s) or str(s).strip() == "": return 0
     toks = [t.strip().lower() for t in re.split(r'[;,\|/\s]+', str(s)) if t.strip() != ""]
     return int("not_confirmed" in toks)
 
-# ========= データ読み込み =========
+# ========= Data loading =========
 df = pd.read_excel(DATA_XLSX, sheet_name=SHEET)
 
-# 必須列
+# Required columns
 if "Database_name" not in df.columns:
-    raise ValueError("列 'Database_name' が見つかりません")
+    raise ValueError("Column 'Database_name' not found")
 
 # ===== has_error =====
 if "cancer_srt_corrections" in df.columns:
     df["error_count_primary"] = df["cancer_srt_corrections"].apply(count_corrections)
 else:
     df["error_count_primary"] = 0
-# 後方互換：未カウント行は旧 metadata_errors の 1{"A";"B"} を参照
+# back compatibility: for rows not counted, refer to old metadata_errors 1{"A";"B"} 
 if "metadata_errors" in df.columns:
     mask_need_legacy = (df["error_count_primary"].fillna(0) == 0)
     df.loc[mask_need_legacy, "error_count_primary"] = df.loc[mask_need_legacy, "metadata_errors"].apply(
@@ -114,7 +114,7 @@ if "unverified_flag" in df.columns:
     df["is_unverified"] = df["unverified_flag"].apply(parse_is_unverified).astype(int)
 else:
     df["is_unverified"] = 0
-# 後方互換：unverified_flag が無い/空の行のみ、旧 metadata_errors トップレベルの nc/nf を unverified として補完
+# back compatibility: for rows without unverified_flag or empty, supplement unverified from old metadata_errors top-level nc/nf
 if "metadata_errors" in df.columns:
     toks = df["metadata_errors"].apply(tokenize_top_level_semicol)
     need_uv = (df["is_unverified"] == 0)
@@ -122,7 +122,7 @@ if "metadata_errors" in df.columns:
         lambda t: int(has_standalone_label(t, "nc") or has_standalone_label(t, "nf"))
     )
 
-# ===== DB集計 =====
+# ===== DB aggregation =====
 g = df.groupby("Database_name", dropna=False)
 db = (pd.DataFrame({
         "total_count": g.size(),
@@ -133,7 +133,7 @@ db = (pd.DataFrame({
 db["error_rate"] = db["error_records"] / db["total_count"]
 db["unv_rate"]   = db["unv"] / db["total_count"]
 
-# Record_unit（任意）最頻値で背景色
+# Record_unit (optional) mode for background color
 if "Record_unit" in df.columns:
     mode_ru = (
         df.groupby("Database_name")["Record_unit"]
@@ -145,10 +145,10 @@ if "Record_unit" in df.columns:
 else:
     db["Record_unit_mode"] = np.nan
 
-# 並び：総数昇順
+# order sorting: ascending by total count
 db = db.sort_values("total_count", ascending=True).reset_index(drop=True)
 
-# レコードへ戻して回帰用
+# Merge back to records for regression
 df = df.merge(db[["Database_name","total_count"]], on="Database_name", how="left")
 df["log_total_count"] = np.log(df["total_count"].clip(lower=1))
 mu_logN = df["log_total_count"].mean()
@@ -163,7 +163,7 @@ gee = GEE.from_formula(
 res = gee.fit()
 print(res.summary())
 
-# 予測カーブ
+# Prediction curve
 rhs = "1 + log_total_count_c"
 def predict_curve_gee(result, x_centered):
     new = pd.DataFrame({"log_total_count_c": x_centered})
@@ -185,14 +185,14 @@ xg_log10 = (xg_c + mu_logN) / np.log(10)
 db_plot = db.copy()
 db_plot["x_log10_total"] = np.log10(db_plot["total_count"].astype(float))
 
-# ========= 図：上段(回帰) + 下段(バー/総数/DB名) =========
+# ========= Figure: upper (regression) + lower (bar/total/DB name) =========
 plt.rcParams["font.family"] = "Arial"
 fig_width = max(12.0, WIDTH_PER_DB * len(db))
 fig_height = TOP_HEIGHT + BOT_HEIGHT
 fig = plt.figure(figsize=(fig_width, fig_height))
 gs = fig.add_gridspec(2, 1, height_ratios=[TOP_HEIGHT, BOT_HEIGHT], hspace=TOP_BOT_HSPACE)
 
-# --- 上段 ---
+# --- upper ---
 ax_reg = fig.add_subplot(gs[0])
 ax_reg.scatter(db_plot["x_log10_total"], db_plot["error_rate"], s=28, alpha=0.8, c=[SCATTER_GRAY])
 ax_reg.plot(xg_log10, p); ax_reg.fill_between(xg_log10, lo, hi, alpha=0.25, linewidth=0)
@@ -215,40 +215,40 @@ if (xR - xL) < 0.3:
     mid = 0.5*(xL+xR); xL = max(0.0, mid-0.15); xR = min(cap_right, mid+0.15)
 ax_reg.set_xlim(xL, xR)
 
-# 軸ラベル
+# Axis labels
 ax_reg.set_xlabel("Total data count (log scale)", fontsize=LABEL_FONTSIZE)
 ax_reg.set_ylabel("Error rate (%)", fontsize=LABEL_FONTSIZE)
 
-# 軸目盛フォントサイズ
+# Axis tick label font size
 ax_reg.tick_params(axis='both', labelsize=TICK_FONTSIZE)
 
 
-# xticks の生成とフォールバック処理
+# Generate xticks and fallback handling
 xticks = np.arange(np.ceil(xL), np.floor(xR) + 1)
-if len(xticks) == 0:  # 配列が空なら中央値を1本だけ出す
+if len(xticks) == 0:  # If array is empty, output only one at the median
     xt_int = int(np.clip(round((xL + xR) / 2), 0, cap_right))
     xticks = [xt_int]
 
 ax_reg.set_xticks(xticks)
 ax_reg.set_xticklabels([f"{int(10**t):,}" for t in xticks])
 
-# --- 下段（3行） ---
+# --- lower ---
 sub_gs = gridspec.GridSpecFromSubplotSpec(3, 1, subplot_spec=gs[1], height_ratios=[100, 14, 14], hspace=0.0)
 ax_bar = fig.add_subplot(sub_gs[0]); ax_tot = fig.add_subplot(sub_gs[1], sharex=ax_bar); ax_lbl = fig.add_subplot(sub_gs[2], sharex=ax_bar)
 
-# --- ここから置き換え ---
+
 
 N = len(db)
 base_x = np.arange(N)
 
-# 2本配置：左右に等間オフセット
+# Two bars arranged: equal offset to the left and right
 offset = BAR_WIDTH / 4.0
 bar_w = BAR_WIDTH / 2.0
 
-err_x = base_x - offset    # 左
-unv_x = base_x + offset    # 右
+err_x = base_x - offset    # left
+unv_x = base_x + offset    # right
 
-# 2系列のバー
+# Two series bars
 bars_err = ax_bar.bar(
     err_x, db["error_rate"].values,
     width=bar_w, color=BAR_COL_ERR, alpha=BAR_ALPHA, label="Error"
@@ -258,7 +258,7 @@ bars_unv = ax_bar.bar(
     width=bar_w, color=BAR_COL_UNV,  alpha=BAR_ALPHA, label="Not confirmed"
 )
 
-# ラベル（%）
+# Labels (%)
 def add_pct_labels(ax, bars):
     for b in bars:
         h = b.get_height()
@@ -273,7 +273,7 @@ def add_pct_labels(ax, bars):
 add_pct_labels(ax_bar, bars_err)
 add_pct_labels(ax_bar, bars_unv)
 
-# スケール等（nfを参照していた所は unv に置換）
+# Scale etc. (replaced nf with unv)
 ax_bar.set_ylim(
     0,
     max(0.01, db[["error_rate","unv_rate"]].to_numpy().max()) * 1.25 + 0.05
@@ -283,26 +283,26 @@ ax_bar.set_ylabel("Rate (%)", fontsize=LABEL_FONTSIZE)
 ax_bar.grid(axis="y", alpha=0.25, linewidth=0.6)
 ax_bar.set_xticks([])
 
-# 軸目盛フォントサイズ
+# Axis tick label font size
 ax_bar.tick_params(axis='both', labelsize=TICK_FONTSIZE)
 
-# 凡例（2系列）
+# Legend (2 series)
 ax_bar.legend(loc="upper right", fontsize=LABEL_FONTSIZE, frameon=False)
 
-# DBごとの区切り線（そのまま）
+# DB boundary lines
 for i in range(N+1):
     ax_bar.axvline(i-0.5, linewidth=0.6, alpha=0.5, color="k")
 
-# --- 置き換えここまで ---
 
-# 総数セル
+
+# Total count cells
 ax_tot.set_ylim(0, 1); ax_tot.set_yticks([]); ax_tot.set_xticks([]); ax_tot.axis("off")
 for i in range(N):
     ax_tot.add_patch(Rectangle((i-0.5, 0.0), 1.0, 1.0, fill=False, edgecolor=(0,0,0,0.35), linewidth=0.6, zorder=2))
 for i, n in enumerate(db["total_count"].values):
     ax_tot.text(i, 0.5, f"{int(n)}", ha="center", va="center", fontsize=TOTAL_FONTSIZE)
 
-# DB名セル（Record_unit 背景）
+# DB name cells (Record_unit background)
 ax_lbl.set_ylim(0, 1); ax_lbl.set_yticks([]); ax_lbl.set_xticks([]); ax_lbl.axis("off")
 for i, ru in enumerate(db["Record_unit_mode"].astype(str).fillna("").values):
     ru_low = ru.lower()
@@ -321,9 +321,9 @@ out_svg = os.path.join(OUT_DIR, "combo_regression_bars.svg")
 plt.savefig(out_png, dpi=300, bbox_inches="tight")
 plt.savefig(out_svg, dpi=300, bbox_inches="tight")
 plt.close()
-print(f"[DONE] 図を保存: {out_png}, {out_svg}")
+print(f"[DONE] Figure saved: {out_png}, {out_svg}")
 
-# ======== Supplementary: 相関行列（p値つき）で交絡確認 ========
+# ======== Supplementary: correlation matrix (with p-values) for confounding check ========
 from scipy import stats
 
 supp_dir = os.path.join(OUT_DIR, "supp_out")
@@ -332,7 +332,7 @@ os.makedirs(supp_dir, exist_ok=True)
 corr_dir = os.path.join(supp_dir, "confounding_check")
 os.makedirs(corr_dir, exist_ok=True)
 
-# --- ヒートマップ用のラベル辞書 ---
+# --- Label dictionary for heatmap ---
 label_map = {
     "error_rate":  "Error rate",
     "unv_rate":    "Not confirmed rate",
@@ -340,12 +340,12 @@ label_map = {
     "RU_code":     "Record unit",
 }
 
-# --- DBレベル指標の準備 ---
+# --- Preparation of DB-level indicators ---
 db_corr = db.copy()
 
 db_corr["log_total_count"] = np.log10(db_corr["total_count"].astype(float).clip(lower=1))
 
-# Record_unit を数値化（dataset=0, sample=1, other=2）
+# Encode Record_unit as numeric (dataset=0, sample=1, other=2)
 def _encode_ru(v):
     if pd.isna(v): return 2
     vl = str(v).strip().lower()
@@ -358,14 +358,14 @@ if "Record_unit_mode" in db_corr.columns:
 else:
     db_corr["RU_code"] = 2
 
-# 必要列が無ければ補完（NaN）
+# If necessary columns are missing, fill with NaN
 for col in ["error_rate", "unv_rate", "log_total_count"]:
     if col not in db_corr.columns:
         db_corr[col] = np.nan
 
 vars_corr = ["error_rate", "unv_rate", "log_total_count", "RU_code"]
 
-# --- Pearson 相関係数 & p値（pairwise、NaN除外、定数列はNaNに） ---
+# --- Pearson correlation coefficients & p-values (pairwise, excluding NaN, constant columns set to NaN) ---
 R = pd.DataFrame(np.nan, index=vars_corr, columns=vars_corr, dtype=float)
 P = pd.DataFrame(np.nan, index=vars_corr, columns=vars_corr, dtype=float)
 
@@ -382,16 +382,16 @@ for i in vars_corr:
         R.loc[i, j] = r if i != j else 1.0
         P.loc[i, j] = p if i != j else 0.0
 
-# CSV保存
+# save CSV files
 R.to_csv(os.path.join(corr_dir, "supp_corr_matrix_r.csv"))
 P.to_csv(os.path.join(corr_dir, "supp_corr_matrix_p.csv"))
-print("[Supplementary] 相関係数とp値をCSVで保存しました。")
+print("[Supplementary] Correlation coefficients and p-values saved as CSV files.")
 
-# --- ヒートマップ（matplotlibのみ、数値＆星印アノテーション） ---
+# --- heatmap (matplotlib only, numeric & star annotations) ---
 fig, ax = plt.subplots(figsize=(7.5, 6.5))
 im = ax.imshow(R.values.astype(float), vmin=-1, vmax=1, cmap="coolwarm")
 
-# 目盛＆ラベル
+# Tick marks & labels
 xticklabels = [label_map.get(v, v) for v in vars_corr]
 yticklabels = [label_map.get(v, v) for v in vars_corr]
 ax.set_xticks(np.arange(len(vars_corr)))
@@ -399,22 +399,22 @@ ax.set_yticks(np.arange(len(vars_corr)))
 ax.set_xticklabels(xticklabels, rotation=45, ha="right")
 ax.set_yticklabels(yticklabels)
 
-# カラーバー
+# Colorbar
 cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 cbar.set_label("Pearson r", rotation=270, labelpad=12)
 
-# セル枠
+# Cell borders
 for i in range(len(vars_corr)+1):
     ax.axhline(i-0.5, color="white", linewidth=0.6, alpha=0.9)
     ax.axvline(i-0.5, color="white", linewidth=0.6, alpha=0.9)
 
-# アノテーション（r と p, 有意なら星印／探索的 †）
+# Annotations (r and p, stars for significance / exploratory †)
 def stars(p):
     if not np.isfinite(p): return ""
     if p < 0.001: return "***"
     if p < 0.01:  return "**"
     if p < 0.05:  return "*"
-    if p < 0.10:  return "†"   # 10%水準（探索的）
+    if p < 0.10:  return "†"   # 10% level (exploratory)
     return ""
 
 for i in range(len(vars_corr)):
@@ -424,13 +424,13 @@ for i in range(len(vars_corr)):
             txt = "1.00"
         else:
             if np.isfinite(r):
-                sig = stars(p)  # "", "*", "**", "\u2020" のいずれか
+                sig = stars(p)  # "", "*", "**", or "\u2020"
                 if np.isfinite(p):
-                    # ★ 記号があっても p を必ず表示
+                    # ★ If there is a symbol, always display p
                     pstr = f"<0.001" if p < 0.001 else f"{p:.3f}"
                     if sig:
                         #txt = f"{r:.2f}\n{sig} (p={pstr})"
-                        # もし順序を (p=...) の前に記号にしたければ↑
+                        # If you want the order to be symbol before (p=...), use the above line
                         txt = f"{r:.2f}\n(p={pstr}) {sig}"
                     else:
                         txt = f"{r:.2f}\n(p={pstr})"
@@ -447,4 +447,4 @@ fig.savefig(os.path.join(corr_dir, "supp_corr_matrix_with_p.svg"), dpi=300)
 fig.savefig(os.path.join(corr_dir, "supp_corr_matrix_with_p.pdf"))
 plt.close(fig)
 
-print("[Supplementary] 相関ヒートマップ（p値入り）を保存しました。")
+print("[Supplementary] correlation heatmap with p-values saved.")
