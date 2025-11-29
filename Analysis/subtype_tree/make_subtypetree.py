@@ -2,33 +2,33 @@
 # -*- coding: utf-8 -*-
 
 """
-chccsrtdb_20251123.xlsx を入力として、
-normalized primary cancer name checked ごとに subtype checked の頻度を集計し、
-階層構造のようにコンソール出力＋PNG/SVG で保存するスクリプト。
+Input file: chccsrtdb_analysis.xlsx 
+This script aggregates the frequency of "subtype checked" for each "normalized primary cancer name checked",
+and outputs the hierarchical structure to the console as well as saving it in PNG/SVG formats.
 
-- Excel は 1 シートのみを想定
-- 列名:
+- Input Excel is assumed to have only one sheet
+- Column names:
     - "normalized primary cancer name checked"
     - "subtype checked"
-- primary 側のルール:
-    - "Non Cancer Sample", "Not identified", 空欄 は無視
-- subtype 側のルール:
-    - セミコロン区切り
-    - () 内の付随情報は削除してから使う
-    - セル全体が ( ... ) の場合（例: "(cell line, MCF-7;xenograft)"）は
-      subtype は「なし」とみなす
-    - すべて空（or ()のみ）になった場合は "No subtype assigned"
-- マッピング:
+- Rules for primary:
+    - Ignore "Non Cancer Sample", "Not identified", and blank cells
+- Rules for subtype:
+    - Semicolon-separated
+    - Remove ancillary information within parentheses before use
+    - If the entire cell is enclosed in parentheses (e.g., "(cell line, MCF-7;xenograft)"),
+      the subtype is considered "none"
+    - If all are empty (or only ()), it is considered "No subtype assigned"
+- Mapping:
     1) primary = A, subtype = C;D
-        -> A の下の C, D をそれぞれ +1
+        -> C and D under A each +1
     2) primary = A;B, subtype = C;D
-        -> A の下の C に +1, B の下の D に +1
-    3) primary = A;B;C, subtype が空 or ()のみ
-        -> A, B, C の下にそれぞれ "No subtype assigned" を +1
+        -> C under A +1, D under B +1
+    3) primary = A;B;C, subtype = (none)
+        -> A, B, C each +1 under "No subtype assigned"
 
-- 並び順:
-    - primary: 昇順（文字列）
-    - subtype: 昇順（文字列、"No subtype assigned" は最後に配置）
+- Sorting order:
+    - primary: ascending (string)
+    - subtype: ascending (string, with "No subtype assigned" placed last)
 """
 
 import collections
@@ -38,10 +38,10 @@ from pathlib import Path
 
 import pandas as pd
 import matplotlib.pyplot as plt
-plt.rcParams["font.family"] = "Arial" # フォント設定
+plt.rcParams["font.family"] = "Arial" 
 
 
-# ---- 設定 ----
+# ---- Settings ----
 INPUT_XLSX = "chccsrtdb_analysis.xlsx"
 PRIMARY_COL = "normalized primary cancer name checked"
 SUBTYPE_COL = "subtype checked"
@@ -54,8 +54,8 @@ IGNORE_PRIMARIES = {"Non Cancer Sample", "Not identified", ""}
 
 def split_semicolon(value):
     """
-    セミコロン区切りのセルを ['A', 'B', ...] に分解する。
-    NaN や空文字は [] を返す。
+    Split a semicolon-separated cell into ['A', 'B',...].
+    Return [] for NaN or empty string.
     """
     if pd.isna(value):
         return []
@@ -67,22 +67,22 @@ def split_semicolon(value):
 
 def remove_parentheses(text):
     """
-    文字列から () 内の部分を削除する。
-    例: 'HER2-positive (IHC)' -> 'HER2-positive'
+    Remove parts within parentheses () from a string.
+    Example: 'HER2-positive (IHC)' -> 'HER2-positive'
     """
     if text is None:
         return ""
     text = str(text)
-    # 0回以上の '( ... )' をすべて削除
+    # Remove all occurrences of '( ... )'
     text = re.sub(r"\s*\([^)]*\)", "", text)
     return text.strip()
 
 
 def subtype_sort_key(item):
     """
-    subtype の並び順を決めるキー関数。
-    - 通常の subtype は文字列昇順
-    - "No subtype assigned" は最後に来るようにする
+    Key function to determine the sorting order of subtypes.
+    - The general subtypes are sorted in ascending order (string)
+    - "No subtype assigned" is placed last
     item: (subtype, count)
     """
     subtype, cnt = item
@@ -93,10 +93,10 @@ def subtype_sort_key(item):
 
 def build_hierarchy(df):
     """
-    DataFrame から primary -> subtype -> count の階層 dict を作る。
-    - primary: IGNORE_PRIMARIES を除外
-    - subtype: () 内を削除してから集計。
-               全体が ( ... ) の場合や、全て空になった場合は "No subtype assigned"
+    Create a hierarchical dict of primary -> subtype -> count from a DataFrame.
+    - primary: exclude IGNORE_PRIMARIES
+    - subtype: remove parts within () before counting.
+               If the entire cell is ( ... ) or all become empty, consider as "No subtype assigned"
     """
     hierarchy = collections.defaultdict(lambda: collections.Counter())
 
@@ -104,58 +104,58 @@ def build_hierarchy(df):
         primary_raw = row.get(PRIMARY_COL)
         subtype_raw = row.get(SUBTYPE_COL)
 
-        # primary の分割とフィルタ
+        # split and filter primary
         primaries_all = split_semicolon(primary_raw)
         primaries = [p for p in primaries_all if p not in IGNORE_PRIMARIES]
 
-        # 有効な primary がなければスキップ
+        # skip if no valid primary
         if not primaries:
             continue
 
-        # ---- subtype の処理 ----
-        # まず「セル全体が ( ... ) で囲まれているだけか」を判定
-        # 例: "(cell line, MCF-7;xenograft)"
+        # ---- subtype processing ----
+        # First, check if the entire cell is enclosed in parentheses ( ... )
+        # Example: "(cell line, MCF-7;xenograft)"
         subtype_text = ""
         if not pd.isna(subtype_raw):
             subtype_text = str(subtype_raw).strip()
 
         if subtype_text and re.match(r"^\([^)]*\)$", subtype_text):
-            # セル全体が 1 ペアの括弧に包まれている → 付随情報だけとみなす
+            # The entire cell is enclosed in one pair of parentheses -> consider as ancillary information only
             subtypes = []
         else:
-            # 通常ケース: セミコロン分割して () を削る
+            # Normal case: split by semicolon and remove ()
             subtype_parts = split_semicolon(subtype_raw)
             cleaned = [remove_parentheses(st) for st in subtype_parts]
-            subtypes = [c for c in cleaned if c]  # 空文字は除外
+            subtypes = [c for c in cleaned if c]  # Exclude empty strings
 
-        # ---- subtype が実質「ない」ケース ----
+        # ---- The case subtype is effectively "none" ----
         if not subtypes:
-            # ここでは "No subtype assigned" を付与
+            # Here, assign "No subtype assigned"
             if len(primaries) == 1:
                 hierarchy[primaries[0]]["No subtype assigned"] += 1
             else:
-                # A;B;C の場合はそれぞれ +1
+                # In case of A;B;C, add +1 for each
                 for p in primaries:
                     hierarchy[p]["No subtype assigned"] += 1
             continue
 
-        # ---- subtype があるケース ----
+        # ---- The case effective subtype exists ----
 
-        # ケース1: primary 1つ, subtype 複数  -> 全ての subtype をその primary にぶら下げて +1
+        # Case 1: single primary, multiple subtypes -> attach all subtypes to that primary with +1
         if len(primaries) == 1:
             primary = primaries[0]
             for st in subtypes:
                 hierarchy[primary][st] += 1
 
-        # ケース2: primary 複数, subtype 複数 かつ 個数一致 -> 対応するペアで +1
+        # Case 2: multiple primaries, multiple subtypes with matching counts -> pairwise +1
         elif len(primaries) == len(subtypes):
             for p, st in zip(primaries, subtypes):
                 hierarchy[p][st] += 1
 
-        # ケース3: primary 複数だが subtype 個数が合わない → 仕様外としてここではスキップ
+        # Case 3: multiple primaries but subtype count does not match -> skip as out of spec
         else:
-            # 必要になったら別ルールをここに実装
-            # print(f"[WARN] Row {idx}: #primary={len(primaries)}, #subtype={len(subtypes)} → スキップ")
+            # Implement other rules here if needed
+            # print(f"[WARN] Row {idx}: #primary={len(primaries)}, #subtype={len(subtypes)} -> skip")
             continue
 
     return hierarchy
@@ -163,26 +163,25 @@ def build_hierarchy(df):
 
 def hierarchy_to_text_lines(hierarchy):
     """
-    hierarchy (primary -> subtype -> count) をコンソール表示と同じ形式の
-    テキスト行リストに変換する。
-    - primary: 昇順
-    - subtype: 昇順（"No subtype assigned" は最後）
+    Transform hierarchy (primary -> subtype -> count) into a list of text lines in the same format in console output.
+    - primary: ascending order
+    - subtype: ascending order ("No subtype assigned" is last)
     """
     lines = []
     for primary in sorted(hierarchy.keys()):
         sub_counter = hierarchy[primary]
         total = sum(sub_counter.values())
         lines.append(f"{primary} (total {total})")
-        # 並び替え：名前昇順、No subtype assigned は最後
+        # Sort: ascending order by name, "No subtype assigned" last
         for subtype, cnt in sorted(sub_counter.items(), key=subtype_sort_key):
             lines.append(f"  |- {subtype} ({cnt})")
-        lines.append("")  # 空行で区切り
+        lines.append("")  # Separate with a blank line
     return lines
 
 
 def print_hierarchy(hierarchy):
     """
-    primary -> subtype -> count の dict を、簡易な階層図風に標準出力に表示する。
+    Print the dict of primary -> subtype -> count as a simple hierarchical tree to standard output.
     """
     lines = hierarchy_to_text_lines(hierarchy)
     for line in lines:
@@ -191,13 +190,12 @@ def print_hierarchy(hierarchy):
 
 def hierarchy_to_dataframe(hierarchy):
     """
-    primary -> subtype -> count の dict を DataFrame に変換。
-    列: primary, subtype, count
+    Convert the dict of primary -> subtype -> count into a DataFrame.
+    columns: primary, subtype, count
 
-    並び順も
-    - primary 昇順
-    - subtype 昇順（"No subtype assigned" は最後）
-    になるように sort して保存する。
+    Sort order:
+    - primary: ascending order
+    - subtype: ascending order ("No subtype assigned" is last)
     """
     records = []
     for primary, sub_counter in hierarchy.items():
@@ -214,7 +212,7 @@ def hierarchy_to_dataframe(hierarchy):
 
     df = pd.DataFrame(records)
 
-    # "No subtype assigned" を最後にするための補助列
+    # Auxiliary column to put "No subtype assigned" last
     def subtype_order(s):
         return 1 if s == "No subtype assigned" else 0
 
@@ -230,33 +228,33 @@ def hierarchy_to_dataframe(hierarchy):
     df.drop(columns=["subtype_order", "subtype_lower"], inplace=True)
     return df
 
-# ツリー構造の作成関数を新規に差し替え
+# Replace the tree structure creation function with a new one
 def plot_hierarchy_text(
     hierarchy,
     png_path=OUTPUT_PNG,
     svg_path=OUTPUT_SVG,
-    max_rows_per_col=100,  # 1カラムあたりの最大行数（お好みで調整）
+    max_rows_per_col=100,  # Maximum number of rows per column (adjust as needed)
 ):
     """
-    primary -> subtype の 2階層ツリーを、
-    実線でつないだ形で matplotlib に描画して PNG/SVG に保存する。
-    primary ブロックを max_rows_per_col 行ごとに複数カラムに分割する。
+    Draw a two-level tree of primary -> subtype,
+    connected with solid lines, using matplotlib and save as PNG/SVG.
+    Split primary blocks into multiple columns every max_rows_per_col rows.
     """
     import matplotlib.pyplot as plt
 
     if not hierarchy:
-        print("図にするデータがありません（行数0）。PNG/SVGは出力しません。")
+        print("There is no data to visualize (0 rows). PNG/SVG will not be output.")
         return
 
-    LINE_COLOR = "black"   # または "0.3" などのグレー
+    LINE_COLOR = "black"  
     LINE_WIDTH = 1.0
 
     primaries = sorted(hierarchy.keys())
 
-    # ---- 1) ラベルとブロック情報を集める ----
+    # ---- 1) Collect labels and block information ----
     parent_labels = []
     subtype_labels = []
-    blocks = []  # 各要素: {"primary", "parent_label", "sub_items", "block_height"}
+    blocks = []  # Each element: {"primary", "parent_label", "sub_items", "block_height"}
 
     for primary in primaries:
         sub_counter = hierarchy[primary]
@@ -268,8 +266,8 @@ def plot_hierarchy_text(
         for subtype, cnt in sub_items:
             subtype_labels.append(f"{subtype} ({cnt})")
 
-        # この primary ブロックが占める行数
-        # 1行目: primary, その後 subtype 行, さらに空行を 2 行くらい確保
+        # Number of rows occupied by this primary block
+        # 1st row: primary, followed by subtype rows, plus about 2 empty rows
         block_height = 1 + len(sub_items) + 2
         blocks.append(
             {
@@ -282,24 +280,24 @@ def plot_hierarchy_text(
 
     max_sub_len = max((len(s) for s in subtype_labels), default=10)
 
-    # 文字幅・レイアウト用パラメータ
-    approx_char_width = 0.14  # 1文字あたりの幅（近すぎ/遠すぎならここを調整）approx_char_width = 0.08 * (PRIMARY_FONTSIZE / 9.0)が目安
-    margin_parent = 0.3      # Primary 文字列の右に必ず空けるマージン margin_parent     = 0.2  * (PRIMARY_FONTSIZE / 9.0)が目安
-    child_dx = 0.5            # 縦線から subtype 列までの最小水平距離
+    # Parameters for character width and layout
+    approx_char_width = 0.14  # Approximate width per character (adjust if too close/far). approx_char_width = 0.08 * (PRIMARY_FONTSIZE / 9.0) is a guideline
+    margin_parent = 0.3      # Margin to always leave to the right of the Primary string. margin_parent = 0.2 * (PRIMARY_FONTSIZE / 9.0) is a guideline
+    child_dx = 0.5            # Minimum horizontal distance from vertical line to subtype column
 
-    x_parent_base = 0.0       # Primary ラベルの左端（全カラム共通）
+    x_parent_base = 0.0       # The left edge position of the Primary label (common to all columns)
 
-    # 図全体で最大の Primary 文字長を使って、カラム幅を見積もる
+    # Estimate column width using the maximum Primary string length across the entire figure
     max_parent_len = max((len(s) for s in parent_labels), default=10)
     parent_right_base = x_parent_base + max_parent_len * approx_char_width
-    x_vert_base = parent_right_base + margin_parent     # 縦線の基準位置
-    x_child_base = x_vert_base + child_dx               # subtype 列の基準位置
+    x_vert_base = parent_right_base + margin_parent     # The base position of the vertical line
+    x_child_base = x_vert_base + child_dx               # The base position of the subtype column
 
-    # 1 カラムあたりの横幅
+    # Width per column
     col_width = x_child_base + max_sub_len * approx_char_width + 0.5
 
-    # ---- 2) ブロックを行数で詰めてカラム分割 ----
-    cols = []          # 各要素が「そのカラムに入る blocks のリスト」
+    # ---- 2) Pack blocks by row count and split into columns ----
+    cols = []          # Each element is a list of blocks in that column
     current_col = []
     current_height = 0
 
@@ -320,17 +318,17 @@ def plot_hierarchy_text(
         sum(blk["block_height"] for blk in col_blocks) for col_blocks in cols
     )
 
-    # ---- 3) 図のサイズ決定 ----
-    fig_height = max(2, max_rows_in_any_col * 0.4)   # 1行あたり 0.4 inch くらい
+    # ---- 3) Determine figure size ----
+    fig_height = max(2, max_rows_in_any_col * 0.4)   # About 0.4 inch per row
     fig_width = max(6, n_cols * col_width)
 
     fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     ax.axis("off")
 
-    # ---- 4) 各カラムごとにツリーを描画 ----
+    # ---- 4) Draw the tree for each column ----
     for col_idx, col_blocks in enumerate(cols):
-        x_offset = col_idx * col_width   # カラムごとの横方向オフセット
-        y = 0                            # このカラム内の一番上からスタート
+        x_offset = col_idx * col_width   # Horizontal offset for each column
+        y = 0                            # Start from the top of this column
 
         for blk in col_blocks:
             parent_label = blk["parent_label"]
@@ -339,7 +337,7 @@ def plot_hierarchy_text(
             y_parent = y
             x_parent = x_parent_base + x_offset
 
-            # Primary ラベル
+            # Primary label
             ax.text(
                 x_parent,
                 y_parent,
@@ -353,25 +351,25 @@ def plot_hierarchy_text(
                 child_ys = []
                 child_texts = []
 
-                # subtype 行
+                # subtype rows
                 for subtype, cnt in sub_items:
                     y += 1
                     cy = y
                     child_ys.append(cy)
                     child_texts.append(f"{subtype} ({cnt})")
 
-                # この Primary 専用の縦線位置を計算
+                # Calculate the vertical line position specific to this Primary
                 text_end = x_parent + len(parent_label) * approx_char_width
                 x_vert = text_end + margin_parent
 
-                # このカラムの subtype 列位置
+                # The subtype column position for this column
                 x_child = x_child_base + x_offset
 
-                # 万一、縦線が subtype に近すぎる場合は少し左に寄せる
+                # If the vertical line is too close to the subtype, shift it slightly to the left
                 if x_vert > x_child - 0.15:
                     x_vert = x_child - 0.15
 
-                # Primary の右端 → 縦線までの水平線
+                # Horizontal line from the right end of Primary to the vertical line
                 ax.plot(
                     [text_end, x_vert],
                     [y_parent, y_parent],
@@ -379,7 +377,7 @@ def plot_hierarchy_text(
                     color=LINE_COLOR,
                 )
 
-                # 縦線（親から一番下の subtype まで）
+                # Vertical line (from parent to the lowest subtype)
                 y_top = child_ys[0]
                 y_bottom = child_ys[-1]
                 ax.plot(
@@ -389,7 +387,7 @@ def plot_hierarchy_text(
                     color=LINE_COLOR,
                 )
 
-                # subtype ラベルとそこまでの水平線（必ず右向き）
+                # subtype labels and horizontal lines (always rightward)
                 for cy, child_label in zip(child_ys, child_texts):
                     ax.text(
                         x_child,
@@ -406,7 +404,7 @@ def plot_hierarchy_text(
                         color=LINE_COLOR,
                     )
 
-            # この Primary ブロックの下に空き行
+            # add empty lines below this Primary block
             y += 2
 
     max_y = max_rows_in_any_col + 1
@@ -418,36 +416,36 @@ def plot_hierarchy_text(
     fig.savefig(svg_path)
     plt.close(fig)
 
-    print(f"階層ツリー図を保存しました: {png_path}, {svg_path}")
+    print(f"Saved hierarchy tree diagram: {png_path}, {svg_path}")
 
 def main():
     input_path = Path(INPUT_XLSX)
     if not input_path.exists():
-        print(f"入力ファイルが見つかりません: {input_path}", file=sys.stderr)
+        print(f"Input file not found: {input_path}", file=sys.stderr)
         sys.exit(1)
 
-    # Excel 読み込み（1シートのみ）
+    # Read Excel (single sheet)
     df = pd.read_excel(input_path)
 
-    # 必要な列があるか確認
+    # Check for required columns
     for col in (PRIMARY_COL, SUBTYPE_COL):
         if col not in df.columns:
-            print(f"必要な列が見つかりません: '{col}'", file=sys.stderr)
-            print("実際の列名一覧:", list(df.columns), file=sys.stderr)
+            print(f"Required column not found: '{col}'", file=sys.stderr)
+            print("Actual column names:", list(df.columns), file=sys.stderr)
             sys.exit(1)
 
-    # 階層構造の作成
+    # Build hierarchy structure
     hierarchy = build_hierarchy(df)
 
-    # コンソールに階層図を表示
+    # Display hierarchy in console
     print_hierarchy(hierarchy)
 
-    # TSV として保存（primary昇順・subtype昇順、"No subtype assigned"は最後）
+    # Save as TSV (primary ascending, subtype ascending, "No subtype assigned" last)
     out_df = hierarchy_to_dataframe(hierarchy)
     out_df.to_csv(OUTPUT_TSV, sep="\t", index=False)
-    print(f"集計結果を保存しました: {OUTPUT_TSV}")
+    print(f"Saved aggregated results: {OUTPUT_TSV}")
 
-    # 階層テキストをそのまま図にして PNG / SVG で保存
+    # Save hierarchy text as PNG / SVG diagram
     plot_hierarchy_text(hierarchy, png_path=OUTPUT_PNG, svg_path=OUTPUT_SVG)
 
 
