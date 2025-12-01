@@ -19,7 +19,7 @@ A Python script that combines two HTAN GeoMx DSP metadata files (`HTAN_GeoMxDSP_
 The script extracts the participant-level identifier by taking the first two underscore-separated components of `HTAN Biospecimen ID` in `HTAN_GeoMxDSP_biospecimens.csv`. 
 e.g. `HTA209_1_123456` → `HTA209_1`
 
-Next, the script aligns the extracted identifiers with the `HTAN Participant ID` column in the `HTAN_GeoMxDSP_cases.csv` file, and performs a left join in which the data frame from `HTAN_GeoMxDSP_cases.csv` was merged into the data frame from `HTAN_GeoMxDSP_biospecimens.csv`.
+Next, the script aligns the extracted identifiers with the `HTAN Participant ID` column in the `HTAN_GeoMxDSP_cases.csv` file, and performs a left join in which the data frame from `HTAN_GeoMxDSP_cases.csv` is merged into the data frame from `HTAN_GeoMxDSP_biospecimens.csv`.
 
 *Note*
 This script performs no error handling.  
