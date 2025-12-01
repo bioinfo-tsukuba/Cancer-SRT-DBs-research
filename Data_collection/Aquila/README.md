@@ -35,6 +35,6 @@ This file lists the Python packages installed in the environment used for this p
 Some packages may not be strictly required for running the scripts.
 
 To ensure compatibility, you can install all packages with:
-```zsh
+```bash
 pip install -r requirements.txt
 ```
