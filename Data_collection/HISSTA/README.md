@@ -16,7 +16,7 @@ Each dictionary becomes one row in the Excel file.
 
 *Note*
 The script performs no error handling.
-If the CSV files are missing or if its structure is invalid or empty, Python will raise an error or generate an empty Excel file. 
+If the JSON file is missing or if its structure is invalid or empty, Python will raise an error or generate an empty Excel file. 
 
 #### Input file
 This script needs HISSTA metadata JSON file named as `HISSTA_metadata.json`. 
