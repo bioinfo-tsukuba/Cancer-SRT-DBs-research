@@ -34,7 +34,7 @@ python3 extract.py
 (The following steps are **manual post-processing** and **not implemented in `extract.py`.**)
 From **output_file.xlsx**, human cancer SRT data candidates were manually extracted using the following filters conditions;
     Condition.condition = cancer
-    organizm = human
+    organism = human
 Finally, a total of 643 entries were extracted.
 
 ### 4. requirements.txt
