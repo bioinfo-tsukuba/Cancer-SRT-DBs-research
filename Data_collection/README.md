@@ -1,6 +1,6 @@
 # README
 
-## 1. OVerview
+## 1. Overview
 This directory contains all resources, scripts, and documentation used to collect, harmonize, and preprocess metadata from 19 publicly available spatial transcriptomics (SRT) databases.
 
 ## 2. Database sources
@@ -25,3 +25,7 @@ Each database is cited with its corresponding reference and publication source.
     **STAr**: Jiang X, Luo D, Fern Ndez E, Yang J, Li H, Jin KW, Zhan Y, Yao B, Bedi S, Xiao G, Zhan X, Li Q, Xie Y. Spatial Transcriptomics Arena (STAr): an Integrated Platform for Spatial Transcriptomics Methodology Research. bioRxiv [Preprint]. 2023 Mar 12:2023.03.10.532127. doi: 10.1101/2023.03.10.532127. PMID: 36945650; PMCID: PMC10028992.
     **STOmicsDB**: Xu Z, Wang W, Yang T, Li L, Ma X, Chen J, Wang J, Huang Y, Gould J, Lu H, Du W, Sahu SK, Yang F, Li Z, Hu Q, Hua C, Hu S, Liu Y, Cai J, You L, Zhang Y, Li Y, Zeng W, Chen A, Wang B, Liu L, Chen F, Ma K, Xu X, Wei X. STOmicsDB: a comprehensive database for spatial transcriptomics data sharing, analysis and visualization. Nucleic Acids Res. 2024 Jan 5;52(D1):D1053-D1061. doi: 10.1093/nar/gkad933. PMID: 37953328; PMCID: PMC10767841.
     **stSNV**: Yang C, Liu Y, Wang X, Jia Q, Fan Y, Lu Z, Shi J, Liu Z, Chen G, Li J, Lu W, Zhou W, Lv D, Zou H, Xu J, Li Y, Jiang Q, Wang T, Shao T. stSNV: a comprehensive resource of SNVs in spatial transcriptome. Nucleic Acids Res. 2025 Jan 6;53(D1):D1224-D1234. doi: 10.1093/nar/gkae945. PMID: 39470702; PMCID: PMC11701523.
+
+## 3. Contents
+This project consists of 19 subprojects corresponding to each database.
+See each folder and README.md in it for more details.
