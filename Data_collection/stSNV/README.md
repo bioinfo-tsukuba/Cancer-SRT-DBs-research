@@ -69,6 +69,12 @@ python3 sort.py
 
 We used this file containing 135 entries for annotation and curation.
 
+---
+> *Note*: Error behavior of these scripts in this folder
+> These scripts perform no error handling.
+> We have not exhaustively tested all error scenarios, but missing or malformed files are expected to cause Python or pandas to raise an exception or to generate an empty output file. 
+---
+
 ### 4. requirements.txt
 This file lists the Python packages installed in the environment used for this project.  
 Some packages may not be strictly required for running the scripts.
