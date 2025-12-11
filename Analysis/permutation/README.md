@@ -103,10 +103,6 @@ A legend is displayed in the upper-left.
 > Specifically, `perm_summary.csv` **must exist in ./perm_out**. For each row in `perm_summary.csv`, the corresponding counts file must also exist in ./perm_out (e.g., `perm_counts_overall.csv`, `perm_counts_excl_STOmicsDB_SMTdb.csv`).  
 > If a counts file is missing for a given row, that particular plot is skipped.
 
-*Note*
-> The script contains some Japanese comments at the top, which belong to an older version and no longer describe the current behavior. 
-> They can safely be ignored.
-
 **SVG note**  
 Although the script preserves editable text in SVGs, no manual editing of SVG files was performed in this study.
 
