@@ -60,6 +60,9 @@ pip-delete-this-directory.txt
 *.h5
 *.hdf5
 
+# excluded old version from commit
+Analysis/permutation/permutation_old.py
+
 # allow small example data
 # .xlsx files and .csv files in the following directories are included for input
 !Analysis/*.xlsx 
