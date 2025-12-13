@@ -1,7 +1,7 @@
 # README
 
 ## Overview
-This folder contains a Python script for correlation analysis between **Jaccard based on overall GSM sets (Jaccard (overall GSM sets))**, **Jaccard based on GSM error carriers (Jaccard (GSM carriers))**, and **shared GSM error counts**. 
+This folder contains a Python script for correlation analysis between **Jaccard similarities based on overall GSM sets (Jaccard (overall GSM sets))**, **Jaccard similarities based on GSM error carriers (Jaccard (GSM carriers))**, and **shared GSM error counts**. 
 Input file for this script is also contained.  
 
 
