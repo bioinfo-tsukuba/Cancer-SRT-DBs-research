@@ -20,6 +20,9 @@ import pandas as pd
 from pathlib import Path
 from collections import defaultdict
 import matplotlib.pyplot as plt
+# to edit SVG easily
+import matplotlib as mpl
+mpl.rcParams['svg.fonttype'] = 'none' 
 
 # ========= Settings =========
 DATA_XLSX = "chccsrtdb_analysis.xlsx"
@@ -194,43 +197,66 @@ def prepare_numpy_blocks(links_unique: pd.DataFrame):
     gsm_cats,  gsm_codes  = np.unique(gsm_vals,  return_inverse=True)
     pair_cats, pair_codes = np.unique(pair_vals, return_inverse=True)
 
-    grp_blocks_dict = defaultdict(list)  # key=(gsm_code, pair_code) -> list[row_idx]
-    for i, key in enumerate(zip(gsm_codes, pair_codes)):
-        grp_blocks_dict[key].append(i)
-    grp_blocks = [np.asarray(v, dtype=int) for v in grp_blocks_dict.values()]
+    # row index groups for each db
+    db_groups = [np.where(db_codes == d)[0] for d in range(len(db_cats))]
 
-    return db_codes, gsm_codes, pair_codes, grp_blocks, db_cats
+    # pair count (needed for hash)
+    n_pair = len(pair_cats)
 
-def count_shared_fast(db_code_arr, grp_blocks) -> int:
+    return db_codes, gsm_codes, pair_codes, db_groups, db_cats, n_pair
+
+
+def count_shared_from_codes(db_codes, gsm_codes, pair_codes_perm, n_pair) -> int:
+    # compress (gsm, pair) into a single integer key
+    key = gsm_codes.astype(np.int64) * np.int64(n_pair) + pair_codes_perm.astype(np.int64)
+
+    # sort by key to group identical keys together
+    order = np.argsort(key)
+    key_s = key[order]
+    db_s  = db_codes[order]
+
     cnt = 0
-    for idxs in grp_blocks:
-        a = db_code_arr[idxs]
-        first = a[0]
+    i = 0
+    n = len(key_s)
+    while i < n:
+        j = i + 1
+        first_db = db_s[i]
         shared = False
-        for v in a[1:]:
-            if v != first:
+        while j < n and key_s[j] == key_s[i]:
+            if db_s[j] != first_db:
                 shared = True
-                break
+            j += 1
         if shared:
             cnt += 1
+        i = j
     return cnt
 
-def run_permutation_global(db_codes, grp_blocks,
-                           n_perm=N_PERM, seed=RANDOM_SEED,
-                           check_every=CHECK_EVERY,
-                           target_half_width=TARGET_HALF_WIDTH,
-                           min_iters_for_stop=MIN_ITERS_FOR_EARLY_STOP,
-                           verbose=True):
+
+def run_permutation_error_shuffle(db_codes, gsm_codes, pair_codes, db_groups, n_pair,
+                                  n_perm=N_PERM, seed=RANDOM_SEED,
+                                  check_every=CHECK_EVERY,
+                                  target_half_width=TARGET_HALF_WIDTH,
+                                  min_iters_for_stop=MIN_ITERS_FOR_EARLY_STOP,
+                                  verbose=True):
     rng = np.random.default_rng(seed)
-    obs_shared = count_shared_fast(db_codes, grp_blocks)
+
+    # 観測値（シャッフルなし）
+    obs_shared = count_shared_from_codes(db_codes, gsm_codes, pair_codes, n_pair)
+
     perm_counts = np.empty(n_perm, dtype=np.int32)
     hits = 0
-    work = db_codes.copy()
+    work_pair = pair_codes.copy()
+
     t0 = time.perf_counter()
 
     for t in range(n_perm):
-        work[:] = rng.permutation(db_codes)
-        c = count_shared_fast(work, grp_blocks)
+        # shaffle error values within each DB group
+        work_pair[:] = pair_codes
+        for idxs in db_groups:
+            if len(idxs) >= 2:
+                work_pair[idxs] = rng.permutation(work_pair[idxs])
+
+        c = count_shared_from_codes(db_codes, gsm_codes, work_pair, n_pair)
         perm_counts[t] = c
         hits += (c >= obs_shared)
 
@@ -247,26 +273,16 @@ def run_permutation_global(db_codes, grp_blocks,
                 break
 
     n_eff = len(perm_counts)
-    perm_mean = float(perm_counts.mean())
-    perm_sd   = float(perm_counts.std(ddof=1)) if n_eff > 1 else 0.0
-    p_perm    = float((hits + 1) / (n_eff + 1))
-    
+    p_perm = float((hits + 1) / (n_eff + 1))
 
     from math import sqrt
-    phat = p_perm  # = (hits + 1) / (n_eff + 1)
+    phat = p_perm
     half = 1.96 * sqrt(max(phat * (1 - phat), 1e-12) / n_eff)
     print(f"[perm][final] n_eff={n_eff}, p={phat:.6f} ±{half:.6f} "
-        f"(95% MC CI [{phat-half:.6f}, {phat+half:.6f}])")
+          f"(95% MC CI [{phat-half:.6f}, {phat+half:.6f}])")
 
-    alpha_line = 0.05 / 2  # 0.025
-    if phat + half < alpha_line:
-        print("[perm][decision] significant Bonferroni(2): p < 0.025 (MC 95% upper bound also below threshold)")
-    elif phat - half > alpha_line:
-        print("[perm][decision] not significant Bonferroni(2): p > 0.025")
-    else:
-        print("[perm][decision] borderline: MC 95% CI crosses 0.025 (point estimate is "+ ("below" if phat < alpha_line else "above") + ")")
-    
-    return obs_shared, perm_counts, perm_mean, perm_sd, p_perm, n_eff
+    return obs_shared, perm_counts, float(perm_counts.mean()), float(perm_counts.std(ddof=1)), p_perm, n_eff
+
 
 # Histogram saving
 def save_histogram(perm_counts, obs, out_png, title="Permutation null"):
@@ -307,7 +323,7 @@ def make_db_target_table(lu: pd.DataFrame) -> pd.DataFrame:
     return tab
 
 
-def save_db_barplot(tab: pd.DataFrame, out_png: str, title: str, top_k: int = 12):
+def save_db_barplot(tab: pd.DataFrame, out_path: str, title: str, top_k: int = 12):
     """
     Horizontal bar plot of top DBs by target count (n_targets) included in the test.
     """
@@ -315,6 +331,8 @@ def save_db_barplot(tab: pd.DataFrame, out_png: str, title: str, top_k: int = 12
     import matplotlib.patheffects as pe
     if tab.empty:
         return
+
+    out_path = Path(out_path)
 
     # Extract top entries
     t = tab.head(top_k).copy()
@@ -370,7 +388,8 @@ def save_db_barplot(tab: pd.DataFrame, out_png: str, title: str, top_k: int = 12
     # Adjustment of margins and clipping
     ax.margins(y=0.05)
     fig.tight_layout()
-    fig.savefig(out_png, dpi=200, bbox_inches="tight")
+    fig.savefig(out_path, dpi=200 if out_path.suffix.lower() != ".svg" else None,
+                bbox_inches="tight")
     plt.close(fig)
 
 # ---------- Main processing ----------
@@ -428,9 +447,12 @@ def main():
     pair_sum_full.to_csv(OUT_DIR / "error_pair_sharing_full.csv", index=False, encoding="utf-8-sig")
 
     # ---------- Basic permutation test (no exclusion) ----------
-    db_codes, gsm_codes, pair_codes, grp_blocks, db_cats = prepare_numpy_blocks(links_unique)
-    print("[INFO] Running global permutation (no-exclusion)...")
-    obs, perm_counts, mu, sd, pval, n_eff = run_permutation_global(db_codes, grp_blocks)
+    db_codes, gsm_codes, pair_codes, db_groups, db_cats, n_pair = prepare_numpy_blocks(links_unique)
+    print("[INFO] Running permutation (error shuffle within DB)...")
+    obs, perm_counts, mu, sd, pval, n_eff = run_permutation_error_shuffle(
+    db_codes, gsm_codes, pair_codes, db_groups, n_pair
+    )
+
 
     # add 97.5% quantile
     q975_overall = float(np.quantile(perm_counts, 0.975))
@@ -446,7 +468,9 @@ def main():
     tab_overall.to_csv(OUT_DIR / "db_target_sizes_overall.csv", index=False, encoding="utf-8-sig")
     # Auxiliary plot (horizontal bar for top entries only)
     save_db_barplot(tab_overall, OUT_DIR / "db_target_sizes_overall_top.png",
-                    title="DB-wise target counts (overall)", top_k=12)
+                title="DB-wise target counts (overall)", top_k=12)
+    save_db_barplot(tab_overall, OUT_DIR / "db_target_sizes_overall_top.svg",
+                title="DB-wise target counts (overall)", top_k=12)
 
     # summary text with simple aggregation
     overall_total = int(tab_overall["n_targets"].sum())
@@ -489,10 +513,10 @@ def main():
                 continue
 
             # ex execution
-            db_codes_e, gsm_codes_e, pair_codes_e, grp_blocks_e, db_cats_e = prepare_numpy_blocks(lu)
-            obs_e, perm_counts_e, mu_e, sd_e, pval_e, n_eff_e = run_permutation_global(
-                db_codes_e, grp_blocks_e
-            )
+            db_codes_e, gsm_codes_e, pair_codes_e, db_groups_e, db_cats_e, n_pair_e = prepare_numpy_blocks(lu)
+            obs_e, perm_counts_e, mu_e, sd_e, pval_e, n_eff_e = run_permutation_error_shuffle(
+            db_codes_e, gsm_codes_e, pair_codes_e, db_groups_e, n_pair_e
+        )
 
             # add 97.5% quantile
             q975_e = float(np.quantile(perm_counts_e, 0.975))
@@ -512,7 +536,9 @@ def main():
             tag = _sanitize_tag(disp)
             tab_case.to_csv(OUT_DIR / f"db_target_sizes_excl_{tag}.csv", index=False, encoding="utf-8-sig")
             save_db_barplot(tab_case, OUT_DIR / f"db_target_sizes_excl_{tag}_top.png",
-                            title=f"DB-wise target counts (exclude {disp})", top_k=12)
+                title=f"DB-wise target counts (exclude {disp})", top_k=12)
+            save_db_barplot(tab_case, OUT_DIR / f"db_target_sizes_excl_{tag}_top.svg",
+                title=f"DB-wise target counts (exclude {disp})", top_k=12)
             case_total = int(tab_case["n_targets"].sum())
             case_top3 = "; ".join([
                 f"{r.Database_name}:{int(r.n_targets)} ({r.prop_all_pct}%)"
@@ -533,33 +559,6 @@ def main():
 
     # Summary CSV & text files
     summary_df = pd.DataFrame(records)
-    # --- Multiple testing correction (m=2: overall and combined exclusions) ---
-    m_tests = 2
-    summary_df["p_bonf"] = np.minimum(summary_df["p_value_one_sided"] * m_tests, 1.0)
-
-    # Holm (m=2 case, similar or slightly more powerful than Bonferroni)
-    order = summary_df["p_value_one_sided"].argsort().to_numpy()  # ← from Series to NumPy array
-    p_sorted = summary_df["p_value_one_sided"].values[order]
-
-    adj = []
-    for k, p in enumerate(p_sorted, start=1):
-        adj.append(min(p * (m_tests - k + 1), 1.0))
-
-    # Monotonic non-decreasing adjustment
-    for i in range(1, len(adj)):
-        adj[i] = max(adj[i], adj[i-1])
-
-    adj = np.asarray(adj, dtype=float)
-
-    holm_adj = np.empty_like(p_sorted, dtype=float)
-    holm_adj[order] = adj  # ← for restoring the original order
-
-    summary_df["p_holm"] = holm_adj
-
-
-    # significance determination (one-sided, Bonferroni 0.025)
-    alpha_bonf = 0.05 / m_tests
-    summary_df["significant_bonf_0p025"] = (summary_df["p_value_one_sided"] < alpha_bonf)
     summary_df.to_csv(OUT_DIR / "perm_summary.csv", index=False, encoding="utf-8-sig")
 
     with open(OUT_DIR / "gsm_shared_summary.txt", "w", encoding="utf-8") as f:
@@ -584,6 +583,9 @@ def main():
         # "perm_hist_overall.png", output removed, so commented out
         "perm_summary.csv",
         "gsm_shared_summary.txt",
+        "db_target_sizes_overall.csv",
+        "db_target_sizes_overall_top.png",
+        "db_target_sizes_overall_top.svg",
     ]:
         print(" -", OUT_DIR / p)
 

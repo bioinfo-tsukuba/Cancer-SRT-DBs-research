@@ -33,20 +33,18 @@ The permutation test is performed using the **unique** dataset.
 Errors on a GSM ID are considered *shared* if two or more databases contain identical values in `cancer_srt_corrections`.
 
 **Procedure**
-1. For all GSM records, database labels are randomly permuted under the null hypothesis.  
-   The number of `(GSM × error_pair)` combinations shared across different databases is counted for each permutation.  
+1. For all GSM records, error–correction pairs (`cancer_srt_corrections`) were randomly reassigned to GSMs within each database, while preserving the database–GSM structure and the error frequency distribution of each database.  
+   The number of `(GSM × error_pair)` combination types shared across different databases is counted for each permutation.  
    The empirical one-sided *p*-value is computed as *(b + 1)/(N + 1)*, where *b* is the number of permutations with counts ≥ the observed value.
 2. A sensitivity analysis is conducted by **excluding both STOmicsDB and SMTdb** (which together account for ~93% of all GSM data).  
    We call this analysis as `Leave-Specific-DBs-Out(LSDO)`. 
-   LSDO is the completely separated permutation test from the main permutation test (described above).
+   LSDO was performed as an independent permutation test using the same procedure as the main analysis.
 
 **Permutation settings**
 - A fixed random seed (RANDOM_SEED = 42) is used for the permutation test to enhance reproducibility.
 - Early stopping occurs when the **half-width of the 95% Monte Carlo confidence interval** for the one-sided *p*-value becomes ≤ **0.0002**, after at least 5,000 iterations.  
 - If this condition is not met, the test runs up to a maximum of **2,000,000 permutations**.  
-- The one-sided significance level was set at **α = 0.025**, 
-corresponding to a Bonferroni correction of the nominal 0.05 level for the two tests (overall and LSDO).
-- Both **Bonferroni** and **Holm** corrections are reported assuming *m = 2* tests (overall and exclusion case).
+- The one-sided significance level was set at **α = 0.05**. 
 
 ##### Input file
 The input Excel file used across multiple analyses,
@@ -69,9 +67,9 @@ All outputs are saved in the automatically created directory `./perm_out`.
 
 | Output files | Description |
 |---------------|-------------|
-| **db_target_sizes_overall_top.png** | Bar plot showing the number and proportion of GSM records per database included in the analysis. |
+| **db_target_sizes_overall_top.png/svg** | Bar plot showing the number and proportion of GSM records per database included in the analysis. |
 | **db_target_sizes_overall.csv** | CSV summary of the number and proportion of GSM records per database (`n_targets`, `n_unique_gsm`, `n_unique_pairs`, `prop_all`, `prop_all_pct`). |
-| **db_target_sizes_excl_STOmicsDB_SMTdb_top.png** | Bar plot after excluding both STOmicsDB and SMTdb. |
+| **db_target_sizes_excl_STOmicsDB_SMTdb_top.png/svg** | Bar plot after excluding both STOmicsDB and SMTdb. |
 | **db_target_sizes_excl_STOmicsDB_SMTdb.csv** | CSV summary after excluding STOmicsDB and SMTdb (same structure as above). |
 | **perm_counts_overall.csv** | Raw permutation counts per iteration for the overall dataset. |
 | **perm_counts_excl_STOmicsDB_SMTdb.csv** | Raw permutation counts per iteration for the exclusion case. |
@@ -80,7 +78,7 @@ All outputs are saved in the automatically created directory `./perm_out`.
 | **shared_gsm_errors.csv** | Table summarizing each `(GSM, error_pair)` with the number of associated databases (`n_databases`), their names (`databases`), and a Boolean flag `is_shared_across_db`. |
 | **gsm_error_links_unique.csv** | Mapping of unique records with row indices, database names, GSM IDs, and standardized/unstandardized error text. |
 | **gsm_error_links_full.csv** | Mapping of all records (no deduplication). In this dataset, identical to the unique file. |
-| **perm_summary.csv** | Summary table including observed shared counts (`obs_shared`), null mean, SD and 97.5% (`null_mean`, `null_sd` and `null_975`), one-sided *p*-values (`p_value_one_sided`), number of effective permutations (`n_perm_effective`), and adjusted *p*-values (**Bonferroni**: `p_bonf`, **Holm**: `p_holm`). Also includes significance flags (`significant_bonf_0p025`, true if **one-sided Bonferroni corrected** *p* < 0.025). |
+| **perm_summary.csv** | Summary table including observed shared counts (`obs_shared`), null mean, SD and 97.5% (`null_mean`, `null_sd` and `null_975`), one-sided *p*-values (`p_value_one_sided`), and number of effective permutations (`n_perm_effective`). |
 | **gsm_shared_summary.txt** | Human-readable summary showing the observed and null results for each case (overall and exclusion), including *p*-values and iteration counts. |
 
 A subdirectory `artifacts/` is created within `perm_out/` for potential intermediate outputs,  
@@ -104,7 +102,7 @@ A legend is displayed in the upper-left.
 > If a counts file is missing for a given row, that particular plot is skipped.
 
 **SVG note**  
-Although the script preserves editable text in SVGs, no manual editing of SVG files was performed in this study.
+These scripts preserves editable text in SVGs.
 
 ##### Usage example
 ```bash
