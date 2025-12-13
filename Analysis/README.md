@@ -11,17 +11,19 @@ This project contains the following subproject folders:
 | **subproject folder name** | **Description** |
 |----------------------------|-----------------|
 | **barplot** | Visualization and comparison project of primary cancer type / SRT technology across the databases using barplot styles. |
+| **count_errors** | Counting cancer/SRT technology related errors in the file `chccsrtdb_analysis.xlsx`. |
 | **heatmap** | Visualization project for the distributions of `primary cancer types x databases`, `SRT technologies x databases`, `primary cancer types x SRT technologies`, and `primary cancer types x metastatic sites` using heatmap styles |
 | **regression** | Analysis of factors significantly associatted with `metadata errors` using the regression model. |
 | **permutation** | Analysis of the tendency for different databases to share the same metadata errors. |
-| **network** | Network-based Visualization of similarities and relationships between databases based on their registered data source and errors`. |
+| **network** | Network-based Visualization of similarities and relationships between databases based on their registered data source and errors. |
+| **sperman_jaccard** | Correlation analysis between Jaccard similarities and shared GSM error counts calculated in `network`. |
 | **timecourse** | Visualization of temporal relationships among databases based on citation, data sources, and error sharing patterns. |
 | **subtype_tree** | Visualization of relationships between `primary cancer types` and their `subtypes`. |
 
 See each folder and its corresponding README.md for more details.
 
 ### 2-2. Common input file
-`chccsrtdb_analysis.xlsx` is a common input file for each subproject except for `timecourse`.
+`chccsrtdb_analysis.xlsx` is a common input file for each subproject except for `spearman_jaccard` and `timecourse`.
 This file contains the following columns:
 | **Column name** | **Description** |
 |-----------------|-----------------|
