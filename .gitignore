@@ -68,6 +68,7 @@ Analysis/permutation/permutation_old.py
 !Analysis/*.xlsx 
 !Analysis/timecourse/*.csv
 !Analysis/timecourse/*.xlsx
+!Analysis/spearman_jaccard/input.xlsx
 
 # ======================
 # Logs / temporary
