@@ -31,3 +31,12 @@ Each database is cited with its corresponding reference and publication source.
 ## 3. Contents
 This project consists of 19 subprojects corresponding to each database.
 See each folder and README.md in it for more details.
+
+## 4 Dependency information
+
+#### Python
+We used `Python 3.11.8` for this study.
+
+#### Dependency file
+The required Python packages for each project are listed in `requirements.txt` in each project folder.
+See README in each folder for details.

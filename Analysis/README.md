@@ -46,7 +46,12 @@ This file contains the following columns:
 
 See each folder README.md to know how to use it.
 
-### 2-3 Dependency file
+### 2-3 Dependency information
+
+#### Python
+We used `Python 3.11.8` for this study.
+
+#### Dependency file
 The required Python packages for each project are listed in this file. 
 
 This file lists the Python packages installed in the environment used for this `Analysis` project.  
