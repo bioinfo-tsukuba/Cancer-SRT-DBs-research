@@ -1,5 +1,23 @@
 # README
 
+> **⚠️ Note on this project**
+>
+> In an analysis restricted to GSM data, we observed a tendency 
+> for the number of shared errors to increase with greater
+> similarity in overall GSM data structure between databases.
+>
+> While overall GSM similarity strongly correlated with the structure of GSM
+> error carriers, the similarity of GSM error carrier structures did not show
+> a statistically significant correlation with the number of shared errors.
+> This may be influenced by the limited number of database pairs exhibiting
+> shared errors (10 out of 66 possible pairs), as well as by database pairs for
+> which carrier-based similarity could not be defined (11 pairs).
+>
+> Due to these limitations, no strong conclusions could be drawn from this analysis.
+> Moreover, these findings neither supported nor contradicted the main conclusions
+> of the study. As the analysis was considered insufficiently robust, it was
+> excluded from the final manuscript.
+
 ## Overview
 This folder contains a Python script for correlation analysis between **Jaccard similarities based on overall GSM sets (Jaccard (overall GSM sets))**, **Jaccard similarities based on GSM error carriers (Jaccard (GSM carriers))**, and **shared GSM error counts**. 
 Input file for this script is also contained.  
