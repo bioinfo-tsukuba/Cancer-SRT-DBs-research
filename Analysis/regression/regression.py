@@ -150,7 +150,7 @@ db = db.sort_values("total_count", ascending=True).reset_index(drop=True)
 
 # Merge back to records for regression
 df = df.merge(db[["Database_name","total_count"]], on="Database_name", how="left")
-df["log_total_count"] = np.log(df["total_count"].clip(lower=1))
+df["log_total_count"] = np.log10(df["total_count"].clip(lower=1))
 mu_logN = df["log_total_count"].mean()
 df["log_total_count_c"] = df["log_total_count"] - mu_logN
 
@@ -180,7 +180,7 @@ x_c = df["log_total_count_c"].values
 span = np.ptp(x_c) if np.ptp(x_c) > 0 else 1.0
 xg_c = np.linspace(x_c.min()-0.02*span, x_c.max()+0.02*span, 250)
 p, lo, hi = predict_curve_gee(res, xg_c)
-xg_log10 = (xg_c + mu_logN) / np.log(10)
+xg_log10 = xg_c + mu_logN
 
 db_plot = db.copy()
 db_plot["x_log10_total"] = np.log10(db_plot["total_count"].astype(float))

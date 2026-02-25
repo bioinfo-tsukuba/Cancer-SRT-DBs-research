@@ -171,14 +171,16 @@ else:
     df["_dup_group_norm"] = dup_series.map(_normalize_dupgrp)
 
     use_row = np.ones(len(df), dtype=bool)
-    seen = {}
+    seen = set()
     for i, g in df["_dup_group_norm"].items():
         if g in (None, np.nan, ""):
             continue  # Always use rows without a group
-        if g not in seen:
-            seen[g] = i   # Use only the first row of that group
-        else:
+        db = df.loc[i, COL_DB]
+        key = (db, g)  
+        if key in seen:
             use_row[i] = False  # Exclude subsequent duplicate rows
+        else:
+            seen.add(key)  # Keep the first row in this (DB, duplicate_group)
     df = df.loc[use_row].copy()
 
 # ---- stratified ----
@@ -196,11 +198,25 @@ for unit in ["dataset","sample"]:
         for c in set(cans): rows_db_cancer.append((db,c))
         for s in set(srts): rows_db_srt.append((db,s))
         for c,s in product(set(cans),set(srts)): rows_cancer_srt.append((c,s))
-        metas=split_sc(r.get(COL_META))
-        L=min(len(cans),len(metas))
-        for i in range(L):
-            c=cans[i]; m=canon_meta(metas[i])
-            if c and m: rows_cancer_meta.append((c,m))
+        metas = split_sc(r.get(COL_META))
+        metas = [canon_meta(m) for m in metas]
+        metas = [m for m in metas if m]  # drop ignored/missing after canon_meta
+
+        # Pairing rule:
+        # - If only one cancer is present and multiple metastatic sites exist, count all pairs (cancer, each site).
+        # - Otherwise, pair cancers and metastatic sites by position (A;B with E;F -> (A,E), (B,F)).
+        if len(cans) == 1 and len(metas) >= 1:
+            c = cans[0]
+            for m in metas:
+                rows_cancer_meta.append((c, m))
+        else:
+            L = min(len(cans), len(metas))
+            for i in range(L):
+                c = cans[i]
+                m = metas[i]
+                if c and m:
+                    rows_cancer_meta.append((c, m))
+
 
     def safe_pivot(df_,idx,cols,val):
         if df_.empty: return pd.DataFrame(index=[],columns=[])

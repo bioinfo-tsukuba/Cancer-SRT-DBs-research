@@ -80,14 +80,16 @@ else:
     dupkey = df.get(COL_ERR, pd.Series([None]*len(df))).map(_first_dup_from_metadata_errors)
 
 use_row = np.ones(len(df), dtype=bool)
-seen = {}
+seen = set()
 for i, g in dupkey.items():
     if g is None:
         continue  # always use rows without a group
-    if g not in seen:
-        seen[g] = i   # use only the first row
-    else:
+    db = df.loc[i, COL_DB]
+    key = (db, g)
+    if key in seen:
         use_row[i] = False  # exclude subsequent duplicate rows
+    else:
+        seen.add(key)  # keep the first row in this (DB, duplicate_group)
 
 df_filt = df.loc[use_row].copy()
 
