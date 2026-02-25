@@ -22,7 +22,7 @@ This script generates a tree structure using two columns from the following inpu
 #### (1) `normalized primary cancer name checked`
 - The values represent standardized and curated primary cancer names.  
 - The script treats these values as primary cancer types and applies the following rules:  
-- **Excluded values**: `Non Cancer Sample`, `Not identified`, and blank cells (exact string match is required).
+- **Excluded values**: `Non Cancer Sample`, `Not identified`, and blank cells.
 
 #### (2) `subtype checked`
 - The values represent standardized subtype names.  
