@@ -1,5 +1,11 @@
 # README
 
+> **⚠️ Note on this project**
+>
+> The main results of this project were not included in the final manuscript, 
+> as they did not lead to a sufficiently meaningful extension of the research,
+> although they did not contradict the conclusions of the study.
+
 ## Overview
 This folder contains files and scripts for analyzing how **error rates** related to cancer and SRT technology metadata vary across databases and which factors correlate with these error rates.  
 Both correlation and regression analyses are performed, and the outputs include numerical tables and visual summaries. 

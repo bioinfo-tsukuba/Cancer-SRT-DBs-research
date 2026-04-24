@@ -13,7 +13,7 @@ This project contains the following subproject folders:
 | **barplot** | Visualization and comparison project of primary cancer type / SRT technology across the databases using barplot styles. |
 | **count_errors** | Counting cancer/SRT technology related errors in the file `chccsrtdb_analysis.xlsx`. |
 | **heatmap** | Visualization project for the distributions of `primary cancer types x databases`, `SRT technologies x databases`, `primary cancer types x SRT technologies`, and `primary cancer types x metastatic sites` using heatmap styles |
-| **regression** | Analysis of factors significantly associatted with `metadata errors` using the regression model. |
+| **regression** | Analysis of factors significantly associatted with `metadata errors` using the regression model. **Exploratory analysis**; main results not included in the manuscript. |
 | **permutation** | Analysis of the tendency for different databases to share the same metadata errors. |
 | **network** | Network-based Visualization of similarities and relationships between databases based on their registered data source and errors. **Exploratory analysis**; main results not included in the manuscript. Selected outputs reused in `timecourse` and a Supplementary Table. |
 | **sperman_jaccard** | Correlation analysis between Jaccard similarities and shared GSM error counts calculated in `network`. **Exploratory analysis**; main results not included in the manuscript. |
