@@ -12,5 +12,5 @@ Contains scripts and materials used in the data collection and curation process 
 For details on each part, please refer to the corresponding README files inside the subdirectories.
 
 **Disclaimer on AI assistance:**  
-English editing and text refinement and Python script generation for this repository were partially assisted by ChatGPT (OpenAI).  
+English editing and text refinement and Python script generation for this repository were assisted by ChatGPT (OpenAI).  
 All analyses, interpretations, and final decisions were made by the authors.
