@@ -5,12 +5,13 @@ This directory contains all resources, scripts, and documentation used to collec
 
 ## 2. Database sources
 The following 19 SRT databases were included in this collection process.
-Each database is cited with its corresponding reference and publication source.
+Each database is cited with its corresponding reference and publication source using PubMed citation information.
+
 | **Database** | **Citation information** |
 |--------------|--------------------------|
 | **Aquila** | Zheng Y, Chen Y, Ding X, Wong KH, Cheung E. Aquila: a spatial omics database and analysis platform. Nucleic Acids Res. 2023 Jan 6;51(D1):D827-D834. doi: 10.1093/nar/gkac874. PMID: 36243967; PMCID: PMC9825501. |
 | **CROST** | Wang G, Wu S, Xiong Z, Qu H, Fang X, Bao Y. CROST: a comprehensive repository of spatial transcriptomics. Nucleic Acids Res. 2024 Jan 5;52(D1):D882-D890. doi: 10.1093/nar/gkad782. PMID: 37791883; PMCID: PMC10773281. |
-| **DeepSpaceDB** | Honcharuk V, Zainab A, Horimoto Y, Takemoto K, Diez D, Kawaoka S, et al.. DeepSpaceDB: a spatial transcriptomics atlas for interactive in-depth analysis of tissues and tissue microenvironments. bioRxiv. doi: 10.1101/2025.01.05.631419 |
+| **DeepSpaceDB** | Honcharuk V, Zainab A, Horimoto Y, Takemoto K, Diez D, Kawaoka S, Vandenbon A. DeepSpaceDB: a spatial transcriptomics atlas for interactive in-depth analysis of tissues and tissue microenvironments. Nucleic Acids Res. 2026 Jan 6;54(D1):D1017-D1030. doi: 10.1093/nar/gkaf1117. PMID: 41160880; PMCID: PMC12807613. |
 | **HCCDB v2.0** | Jiang Z, Wu Y, Miao Y, Deng K, Yang F, Xu S, Wang Y, You R, Zhang L, Fan Y, Guo W, Lian Q, Chen L, Zhang X, Zheng Y, Gu J. HCCDB v2.0: Decompose Expression Variations by Single-cell RNA-seq and Spatial Transcriptomics in HCC. Genomics Proteomics Bioinformatics. 2024 May 9;22(1):qzae011. doi: 10.1093/gpbjnl/qzae011. PMID: 38886186; PMCID: PMC11423853. |
 | **HISSTA** | Yu J, Moon J, Kim M, Han G, Jang I, Lim J, Lee S, Yoon SH, Park WY, Lee B, Lee S. HISSTA: a human in situ single-cell transcriptome atlas. Bioinformatics. 2025 Mar 29;41(4):btaf142. doi: 10.1093/bioinformatics/btaf142. PMID: 40163697; PMCID: PMC12002909. |
 | **HTAN** | Rozenblatt-Rosen O, Regev A, Oberdoerffer P, Nawy T, Hupalowska A, Rood JE, Ashenberg O, Cerami E, Coffey RJ, Demir E, Ding L, Esplin ED, Ford JM, Goecks J, Ghosh S, Gray JW, Guinney J, Hanlon SE, Hughes SK, Hwang ES, Iacobuzio-Donahue CA, Jané-Valbuena J, Johnson BE, Lau KS, Lively T, Mazzilli SA, Pe'er D, Santagata S, Shalek AK, Schapiro D, Snyder MP, Sorger PK, Spira AE, Srivastava S, Tan K, West RB, Williams EH; Human Tumor Atlas Network. The Human Tumor Atlas Network: Charting Tumor Transitions across Space and Time at Single-Cell Resolution. Cell. 2020 Apr 16;181(2):236-249. doi: 10.1016/j.cell.2020.03.053. PMID: 32302568; PMCID: PMC7376497. |
