@@ -13,4 +13,5 @@ For details on each part, please refer to the corresponding README files inside 
 
 **Disclaimer on AI assistance:**  
 English editing and text refinement and Python script generation for this repository were assisted by ChatGPT (OpenAI).  
+GitHub Copilot was additionally used to assist with minor revisions and refinement of Python scripts.
 All analyses, interpretations, and final decisions were made by the authors.
