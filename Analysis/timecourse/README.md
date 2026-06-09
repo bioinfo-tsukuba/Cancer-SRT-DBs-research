@@ -64,7 +64,7 @@ and overlays **shared GSM-level annotation errors** between databases (from **2-
   - The y-axis carries no analytical meaning—it is optimized only for visual separation of nodes.
 
 > *Note*  
-> In most cases, when a database is listed as a `data_source`, it is also cited (`citing`),  
+> In all cases examined in this study, when a database is listed as a `data_source`, it is also cited (`citing`),  
 > so the **solid data_source line** takes precedence, and the **dotted citing line** is not displayed.
 
 Node x-positions are determined by the `earliest` dates, while y-positions are adjusted through the **`time_optim` layout** algorithm (using parameters `NEAR_X_DAYS`, `MIN_Y_GAP_NEAR_X`, `Y_SPREAD_PASSES`, and `Y_SPREAD_COOLING`).  
