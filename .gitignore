@@ -62,6 +62,8 @@ pip-delete-this-directory.txt
 
 # excluded old version from commit
 Analysis/permutation/permutation_old.py
+Analysis/permutation/permutation.py
+Analysis/permutation/visualization_permutation.py
 
 # allow small example data
 # .xlsx files and .csv files in the following directories are included for input
