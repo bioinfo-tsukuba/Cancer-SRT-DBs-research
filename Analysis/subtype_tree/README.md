@@ -26,10 +26,9 @@ This script generates a tree structure using two columns from the following inpu
 
 #### (2) `subtype checked`
 - The values represent standardized subtype names.  
-- Ontobee NCIT ontology terms are enclosed in `""`, and additional information is described inside parentheses `()`.  
+- Ontobee NCIT ontology terms are enclosed in `""`.  
 - The script applies the following rules for extraction and aggregation:  
-- Subtype names are extracted after removing any content inside parentheses.  
-- Empty cells or cells that contain only values enclosed in parentheses are treated as **"No subtype assigned"**.
+- Empty cells are treated as **"No subtype assigned"**.
 
 #### Mapping and counting
 The mapping and counting follow these rules:
@@ -40,10 +39,14 @@ The mapping and counting follow these rules:
 2) primary = A;B, subtype = C;D  
 　→ Count +1 for C under A, and +1 for D under B  
 
-3) primary = A;B;C, subtype = (none)  
+3) primary = A, subtype = B;B;B
+   → Count +1 for B under A
+   (duplicate primary-subtype pairs within the same row are counted only once)
+
+4) primary = A;B;C, subtype = (none)  
 　→ Count +1 for each A, B, C under **"No subtype assigned"**  
 
-4) Cases where primary contains two or more values and subtype contains one or more values,  
+5) Cases where primary contains two or more values and subtype contains one or more values,  
    but the numbers do not match, are ignored.  
    Example: primary = A;B, subtype = C  
 　→ Not aggregated (such cases do not appear in the current input file)

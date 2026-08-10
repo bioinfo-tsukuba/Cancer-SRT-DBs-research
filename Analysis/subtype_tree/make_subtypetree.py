@@ -113,20 +113,8 @@ def build_hierarchy(df):
             continue
 
         # ---- subtype processing ----
-        # First, check if the entire cell is enclosed in parentheses ( ... )
-        # Example: "(cell line, MCF-7;xenograft)"
-        subtype_text = ""
-        if not pd.isna(subtype_raw):
-            subtype_text = str(subtype_raw).strip()
-
-        if subtype_text and re.match(r"^\([^)]*\)$", subtype_text):
-            # The entire cell is enclosed in one pair of parentheses -> consider as ancillary information only
-            subtypes = []
-        else:
-            # Normal case: split by semicolon and remove ()
-            subtype_parts = split_semicolon(subtype_raw)
-            cleaned = [remove_parentheses(st) for st in subtype_parts]
-            subtypes = [c for c in cleaned if c]  # Exclude empty strings
+        # Keep subtype names exactly as written, including parentheses.
+        subtypes = split_semicolon(subtype_raw)
 
         # ---- The case subtype is effectively "none" ----
         if not subtypes:
@@ -141,15 +129,17 @@ def build_hierarchy(df):
 
         # ---- The case effective subtype exists ----
 
-        # Case 1: single primary, multiple subtypes -> attach all subtypes to that primary with +1
+        # Case 1: single primary, multiple subtypes
+        # Count each unique primary-subtype pair only once per row.
         if len(primaries) == 1:
             primary = primaries[0]
-            for st in subtypes:
+            for st in set(subtypes):
                 hierarchy[primary][st] += 1
 
-        # Case 2: multiple primaries, multiple subtypes with matching counts -> pairwise +1
+        # Case 2: multiple primaries, multiple subtypes with matching counts
+        # Pair by position and count each unique pair only once per row.
         elif len(primaries) == len(subtypes):
-            for p, st in zip(primaries, subtypes):
+            for p, st in set(zip(primaries, subtypes)):
                 hierarchy[p][st] += 1
 
         # Case 3: multiple primaries but subtype count does not match -> skip as out of spec
