@@ -18,7 +18,9 @@ This project contains the following subproject folders:
 | **network** | Network-based Visualization of similarities and relationships between databases based on their registered data source and errors. **Exploratory analysis**; main results not included in the manuscript. Selected outputs reused in `timecourse` and a Supplementary Table. |
 | **sperman_jaccard** | Correlation analysis between Jaccard similarities and shared GSM error counts calculated in `network`. **Exploratory analysis**; main results not included in the manuscript. |
 | **timecourse** | Visualization of temporal relationships among databases based on citation, data sources, and error sharing patterns. |
-| **subtype_tree** | Visualization of relationships between `primary cancer types` and their `subtypes`. |
+| **subtype** | Visualization of relationships between `primary cancer types` and their `subtypes`. **Exploratory analysis**; main results not included in the manuscript. These results were included in the manuscript. |
+| **subtype_tree** | Deprecated protocl for visualization of relationships between `primary cancer types` and their `subtypes`. **Exploratory analysis**; main results not included in the manuscript. |
+
 
 See each folder and its corresponding README.md for more details.
 
@@ -33,6 +35,7 @@ This file contains the following columns:
 | **normalized primary cancer name checked** | Curated and normalized primary cancer type. |
 | **subtype checked** | Curated and normalized cancer subtype. |
 | **metastatic cancer checked** | Curated and normalized metastatic site. |
+| **sample_type** | Additional sample information. e.g. adjacent normal, xenograft, cell line. |
 | **normalized SRT technology checked** | Curated and normalized SRT technology type. |
 | **cancer_srt_corrections** | Metadata error information related to cancer types or SRT technologies. `A -> B` indicates that `A` is considered as an errorneous value, and `B` is our suggested correction.  |
 | **Other errors** | Additional other error information not covered above. |
