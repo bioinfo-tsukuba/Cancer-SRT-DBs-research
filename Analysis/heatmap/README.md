@@ -43,8 +43,13 @@ the **database** (Database_name), the **recording unit** (Record_unit), and the 
 - Entries labeled as Non SRT or blank are excluded.
 - ST, Visium, and ST/Visium are unified as ST/Visium.
 - Slide-seq and Slide-seqV2 are unified as Slide-seq/Slide-seqV2.
+> *Note*
+> In this study, an entry containing both ST and Visium (ST;Visium) was observed. 
+> These annotations were harmonized to ST/Visium and counted once for the corresponding database or primary cancer type, rather than twice.
 
 **Rules for Metastatic status**:
+- For primary cancer–metastasis pairs, when a single primary cancer type is associated with multiple metastatic sites, each pair is counted separately.
+  - Example: primary cancer A and metastatic sites B;C → (A, B) and (A, C) are each counted once.
 - Only entries labeled as “primary site”, “not identified”, or “not defined” are excluded.
   - Example: "Colorectal Cancer", "Primary site; Liver metastasis" → only (Colorectal Cancer, Liver metastasis) is counted.
 - In our curated input file, all remaining entries in this column represent metastatic annotations (i.e., they contain “metastasis” after preprocessing).
